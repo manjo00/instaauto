@@ -23,8 +23,8 @@ have a green baseline to grow features on.
 - [x] `autoinsta_Master_Plan.md` written with phased roadmap
 - [x] `assembleDebug` produces an APK (verified from CLI — BUILD SUCCESSFUL,
       app/build/outputs/apk/debug/app-debug.apk)
-- [ ] Android project opens in Android Studio (pending: user to confirm)
-- [ ] App launches to placeholder Home, no crash (pending: run on device/emulator)
+- [x] App installs + launches on Pixel_10_Pro emulator, Home screen renders, no crash
+      (verified via adb install + screencap; process alive). **PHASE 0 DONE.**
 
 ## Build note (IMPORTANT — non-ASCII project path)
 The project sits under `C:\سطح المكتب\` (Arabic "Desktop"). Two consequences:
