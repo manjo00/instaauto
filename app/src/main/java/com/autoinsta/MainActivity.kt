@@ -17,13 +17,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            AutoInstaApp()
+            AppRoot()
         }
     }
 }
 
 @Composable
-private fun AutoInstaApp() {
+private fun AppRoot() {
     AutoInstaTheme {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             HomeScreen(modifier = Modifier.padding(innerPadding))
