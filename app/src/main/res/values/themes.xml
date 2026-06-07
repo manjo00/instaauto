@@ -1,0 +1,5 @@
+<resources>
+    <!-- Compose drives the real theming; this base theme just sets a no-action-bar
+         window so the Activity hosts Compose cleanly. -->
+    <style name="Theme.AutoInsta" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
