@@ -131,14 +131,22 @@ autoinsta/
 
 ## 🧱 BUILD & RUN
 This machine has Android Studio + SDK (platforms 33–36, build-tools 36/37) and a bundled JDK.
-Java/Gradle are **not on PATH** — use the bundled JDK with the Gradle wrapper:
-```bash
-export JAVA_HOME="C:/Program Files/Android/Android Studio/jbr"
-./gradlew assembleDebug      # build debug APK
-./gradlew installDebug       # install to a connected device/emulator
+Java/Gradle are **not on PATH**, and **`gradlew`/`gradlew.bat` FAIL here** because the
+project path contains non-ASCII chars (`C:\سطح المكتب\` = Arabic "Desktop") which cmd/bash
+mangle into a broken classpath. Build by invoking the wrapper's main class directly with a
+**relative** classpath (run from the project root, e.g. in PowerShell):
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+& "$env:JAVA_HOME\bin\java.exe" "-Dorg.gradle.appname=gradlew" "-Dfile.encoding=UTF-8" `
+  -classpath "gradle\wrapper\gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain `
+  :app:assembleDebug --no-daemon --console=plain
 ```
-Or just open the folder in Android Studio and Run. **Always confirm a build passes
-before logging a task complete.**
+Also required: `android.overridePathCheck=true` in `gradle.properties` (AGP blocks
+non-ASCII paths otherwise). Verified the full build works with it.
+
+Easiest path for the owner: **open the folder in Android Studio and press Run** — AS uses
+its own embedded Gradle runner and handles the path fine. **Always confirm a build passes
+(BUILD SUCCESSFUL + an APK in `app/build/outputs/apk/debug/`) before logging a task complete.**
 
 ---
 

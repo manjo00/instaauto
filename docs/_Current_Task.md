@@ -21,9 +21,19 @@ have a green baseline to grow features on.
 - [x] `docs/` brain created
 - [x] `CLAUDE.md` written and adapted for Android/Kotlin + Graph API
 - [x] `autoinsta_Master_Plan.md` written with phased roadmap
-- [ ] Android project opens in Android Studio
-- [ ] `./gradlew assembleDebug` produces an APK (verified from CLI)
-- [ ] App launches to a placeholder Home screen, no crash
+- [x] `assembleDebug` produces an APK (verified from CLI — BUILD SUCCESSFUL,
+      app/build/outputs/apk/debug/app-debug.apk)
+- [ ] Android project opens in Android Studio (pending: user to confirm)
+- [ ] App launches to placeholder Home, no crash (pending: run on device/emulator)
+
+## Build note (IMPORTANT — non-ASCII project path)
+The project sits under `C:\سطح المكتب\` (Arabic "Desktop"). Two consequences:
+1. `gradlew` / `gradlew.bat` FAIL here — cmd/bash mangle the non-ASCII path in the
+   classpath. Build via direct java + relative classpath instead (see CLAUDE.md
+   "BUILD & RUN").
+2. `android.overridePathCheck=true` is set in gradle.properties — required, or AGP
+   refuses to build. Verified the full native pipeline (AAPT2/dex/native-libs) works.
 
 ## Noticed (not fixing now)
-- (none yet)
+- gradlew wrapper scripts unusable at this path (documented; not blocking — direct
+  java build works, and Android Studio invokes Gradle via its own embedded runner).
