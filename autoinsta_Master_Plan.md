@@ -42,7 +42,7 @@ Room entities + DAOs + DB: `ScheduledPost`, `MediaItem`, `HashtagPreset`,
 `PostHistory`, `Account`. Repositories. `PostType`/`PostStatus` domain models.
 Unit-testable, no UI yet.
 
-### Phase 2 — Compose-post UI (local only)
+### ✅ Phase 2 — Compose-post UI (local only)
 Screen to create/edit a scheduled post: media picker (single/multi), caption field,
 hashtag preset picker + free hashtags, date+time picker. Saves to Room. Queue/Home
 list shows scheduled posts. Delete/edit. **No real posting yet** — just persistence.

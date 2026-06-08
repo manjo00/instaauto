@@ -55,6 +55,23 @@ class PostRepository(
 
     suspend fun updatePost(post: ScheduledPostEntity) = postDao.update(post)
 
+    /**
+     * Update a post AND replace its media set in one call — used when the user
+     * edits an existing scheduled post (they may add/remove/reorder media).
+     * Simplest correct approach for v1: wipe the old rows, insert the new ones.
+     * Not wrapped in a DB-level @Transaction (would require exposing AppDatabase
+     * to the repository); acceptable for a single-user, on-device app.
+     */
+    suspend fun updatePost(
+        post: ScheduledPostEntity,
+        mediaItems: List<MediaItemEntity>,
+    ) {
+        postDao.update(post)
+        mediaDao.deleteForPost(post.id)
+        val itemsWithPostId = mediaItems.map { it.copy(id = 0, postId = post.id) }
+        mediaDao.insertAll(itemsWithPostId)
+    }
+
     suspend fun updateStatus(
         postId: Long,
         status: PostStatus,

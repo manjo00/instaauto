@@ -1,59 +1,39 @@
-# Current Task — Phase 1: Data Layer
+# Current Task — Phase 2: Compose-post UI (local only)
 
 **Date:** 2026-06-08
 **Branch:** main
 
 ## Goal
-Build the Room database that stores every persistent piece of state the app needs:
-scheduled posts, their media files, hashtag presets, post history, and the connected
-Instagram account. Expose each table through a repository so ViewModels and
-PostWorker have a clean single access point. Nothing UI-facing yet — pure data plumbing.
+Build the screen where the user creates/edits a scheduled post — pick media (single
+file or 2–10 for a carousel), write a caption, attach hashtags (from a saved preset
+or free text), and pick a date+time — and persist it via `PostRepository`. Rework
+the Home screen into a live queue of scheduled posts with delete and tap-to-edit.
+No real posting yet, no scheduling engine — pure Compose + Room persistence, wired
+together with Navigation-Compose.
 
 ## Files to touch
 
-### New — domain models
-- `domain/model/PostType.kt`     — enum: SINGLE_IMAGE, REEL, CAROUSEL
-- `domain/model/PostStatus.kt`   — enum: SCHEDULED, POSTING, POSTED, FAILED, CANCELLED
-- `domain/model/MediaType.kt`    — enum: IMAGE, VIDEO
-
-### New — Room entities
-- `data/db/entities/ScheduledPostEntity.kt`
-- `data/db/entities/MediaItemEntity.kt`
-- `data/db/entities/HashtagPresetEntity.kt`
-- `data/db/entities/PostHistoryEntity.kt`
-- `data/db/entities/AccountEntity.kt`
-- `data/db/relations/ScheduledPostWithMedia.kt`
-
-### New — DAOs
-- `data/db/dao/ScheduledPostDao.kt`
-- `data/db/dao/MediaItemDao.kt`
-- `data/db/dao/HashtagPresetDao.kt`
-- `data/db/dao/PostHistoryDao.kt`
-- `data/db/dao/AccountDao.kt`
-
-### New — DB setup
-- `data/db/Converters.kt`    — TypeConverters for enums
-- `data/db/AppDatabase.kt`   — RoomDatabase, version 1
-
-### New — Repositories
-- `data/repository/PostRepository.kt`
-- `data/repository/PresetRepository.kt`
-- `data/repository/AccountRepository.kt`
-- `data/repository/HistoryRepository.kt`
+### New
+- `ui/composepost/ComposePostViewModel.kt` — form state, media picking, validation, save (insert or update)
+- `ui/composepost/ComposePostScreen.kt` — post-type selector, media picker/preview, caption, hashtags + preset picker, date/time pickers
+- `ui/home/HomeViewModel.kt` — observes scheduled queue, exposes delete
 
 ### Modified
-- `gradle/libs.versions.toml`  — add KSP + Room versions
-- `build.gradle.kts` (root)    — add KSP plugin apply false
-- `app/build.gradle.kts`       — apply KSP, add Room deps
-- `AutoInstaApp.kt`            — instantiate AppDatabase singleton
+- `ui/home/HomeScreen.kt` — rewrite: LazyColumn queue list, FAB to create, tap to edit, delete with confirm
+- `MainActivity.kt` — NavHost wiring `home` ↔ `composePost?postId={id}`
+- `data/repository/PostRepository.kt` — add `updatePost(post, mediaItems)` that replaces media on edit
+- `gradle/libs.versions.toml` — add navigation-compose, lifecycle-viewmodel-compose, material-icons-extended, coil-compose
+- `app/build.gradle.kts` — wire the new deps
 
 ## Acceptance criteria
-- [x] AppDatabase compiles (KSP generates Room code without error — kspDebugKotlin ✅)
-- [x] All 5 entities present with correct relations and indices
-- [x] All 5 DAOs compile with Flow-returning queries
-- [x] Repositories wrap DAOs cleanly (no Room calls escape the repository layer)
-- [x] Builds: assembleDebug — BUILD SUCCESSFUL in 1m 38s, 38 tasks executed
+- [x] Can create a SINGLE_IMAGE / REEL / CAROUSEL post: pick media, caption, hashtags (preset or free text), date+time, Save persists to Room
+- [x] Home queue shows live list from `observeScheduled()`, newest-time first
+- [x] Tap a queued post opens it pre-filled for edit; Save updates the row + media
+- [x] Delete removes the post (and cascades media) with a confirmation dialog
+- [x] Builds: assembleDebug — BUILD SUCCESSFUL in 58s, APK at app/build/outputs/apk/debug/app-debug.apk
 - [x] Git committed
 
 ## Noticed (not fixing now)
-(none)
+- `Icons.Filled.ArrowBack` is deprecated in favor of `Icons.AutoMirrored.Filled.ArrowBack`
+  (compiler warning in ComposePostScreen.kt). Cosmetic, harmless — fix opportunistically
+  next time that file is touched.
