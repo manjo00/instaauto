@@ -33,6 +33,7 @@ Target user: a **digital-art Instagram account** (Creator account).
 > Each phase = a few focused tasks. One `_Current_Task.md` per task. Commit per phase.
 
 ### ✅ Phase 0 — Bootstrap
+### ✅ Phase 1 — Data layer
 Git, docs brain, CLAUDE.md, this plan, **buildable Android skeleton** (launches to a
 placeholder Home). Green baseline.
 
