@@ -24,3 +24,6 @@ keystore.properties
 # --- OS / Editor ---
 Thumbs.db
 *.log
+
+# --- Tooling/runtime state (not project source) ---
+.claude/
