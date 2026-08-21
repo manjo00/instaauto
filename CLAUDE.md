@@ -4,149 +4,222 @@
 autoinsta is a native **Android (Kotlin + Jetpack Compose)** app that **schedules and
 auto-publishes Instagram posts, Reels, and carousels** at a chosen date/time, each with
 its own pre-written caption + hashtags. On-device scheduling, **official Instagram Graph
-API**, no backend server.
+API**, no backend server. Target user: a **digital-art Instagram account** (Creator account).
+
+---
+
+## 👤 WHO YOU'RE WORKING WITH
+
+The owner is a **beginner at mobile development**. Before using a new concept, explain
+in 2–3 sentences what it does and why it's the right tool here. Explain; don't lecture —
+they follow along fine once the idea is named.
+
+Be direct. If an idea is wrong or risky, say so in a sentence or two, then either do it
+their way if they confirm, or propose the better path. When you get something wrong,
+name it briefly and move on — no long apologies.
+
+**Report failures plainly.** If something didn't work, say what broke and show the
+output. Never claim success you haven't verified.
 
 ---
 
 ## 🔴 EVERY SESSION STARTS WITH GIT
 
-Before touching any file, create a checkpoint yourself:
+Before touching any file:
 ```bash
 git add -A && git commit -m "checkpoint: before [task name]"
 ```
-For large tasks touching many files, commit after each meaningful unit:
-```bash
-git commit -m "feat: [area] — [what changed]"
-```
-Final commit when done:
-```bash
-git add -A && git commit -m "feat: [task name] complete"
-```
-**Non-negotiable. We need rollback points. Commit yourself every session, no exceptions.**
+Commit after each meaningful unit, and again when done. **Conventional commits**
+(`feat:`, `fix:`, `docs:`, `test:`, `chore:`). `main` stays green. Push after each
+working feature.
 
 ---
 
 ## 📋 HOW A SESSION WORKS
 
-The owner talks to you in plain language. No middleman, no ticket queue.
+1. **Challenge first.** Is the idea complete? Anything ambiguous? Does it contradict a
+   locked decision in `autoinsta_Master_Plan.md`? Push back with **one focused
+   question** rather than proceeding on assumptions.
 
-**When you get a task:**
+2. **Brainstorm before building.** For anything non-trivial: ask questions **one batch
+   at a time** (multiple-choice where possible), propose **2–3 approaches with
+   trade-offs and your recommendation**, write a short design, get an OK.
+   **Don't write feature code before the design is approved.**
+   Shorthand: if the prompt ends with **"full power"**, skip the asking and run the
+   full pipeline (plan → execute → review).
 
-1. **Challenge first.** Before agreeing: Is the idea complete? Anything ambiguous or
-   underspecified? Does it contradict the architecture or a locked decision in
-   `autoinsta_Master_Plan.md`? If anything is unclear — push back with **one focused
-   question**, don't proceed on assumptions.
+3. **Write it down** — the design goes in `docs/specs/`, the task breakdown in
+   `docs/plans/`. See the docs layout below.
 
-2. **Offer the pipeline (big tasks only).** For anything non-trivial, ask:
-   > *"Full pipeline for this? (plan → execute → review)"*
-   - **No** → proceed normally.
-   - **Yes** → produce a written plan first, execute it, then self-review the diff before showing the result.
-   - Shorthand: if the prompt ends with **"full power"**, treat as yes — skip asking.
+4. **Then build it in batches.** Don't stop and ask after every small step. Group the
+   work, run tests and analysis throughout, come back when there's something real to
+   look at. Only interactive/device steps wait for the owner.
 
-3. **Restate** what you understood in ~2 sentences and **list the exact files** you'll touch.
-4. **RUN the git checkpoint** before touching anything.
-5. **Write the task to `docs/_Current_Task.md`** using the template below.
-6. **Execute.** Follow every convention in this file.
-7. **Spotted an unrelated bug?** Note it under `## Noticed (not fixing now)` in
-   `docs/_Current_Task.md`. Do **not** fix it inline.
-8. **When done — always, unprompted:**
-   - Append one line to `docs/_Task_History.md`.
-   - If the task completes/changes a roadmap item, update `autoinsta_Master_Plan.md`
-     and `docs/_Architecture.md`.
-   - `git add -A && git commit -m "feat/fix/docs: [task name]"`.
+5. **Spotted an unrelated bug?** Log it under `## Noticed (not fixing now)` in the plan
+   file, or in `docs/ROADMAP.md` if it's a real piece of work. Do **not** fix it inline.
 
-**Token discipline:** read `docs/_Architecture.md` + the specific files for the task.
+6. **No silent changes.** If you touch a file outside the task, say what and why.
+   Never mass-reformat the codebase as a side effect.
+
+7. **When done — always, unprompted:** update `docs/STATUS.md`, update the Master Plan
+   and `docs/ARCHITECTURE.md` if a roadmap item or the architecture changed, install on
+   the device, commit, push.
+
+**Token discipline:** read `docs/ARCHITECTURE.md` + the specific files for the task.
 Don't re-read the whole codebase. Use Grep/Glob for targeted lookups.
 
 ---
 
-## 📝 TASK FILE TEMPLATE — `docs/_Current_Task.md`
-```markdown
-# Current Task — [SHORT NAME]
-**Date:** [TODAY]
-**Branch:** main
+## ✅ QUALITY BAR (non-negotiable)
 
-## Goal
-[Request restated clearly in your own words]
+- **Lint clean** and **tests green** before you call anything done.
+- **Pure logic gets a unit test** (`app/src/test`, runs on the JVM in seconds).
+  **Real UI/gestures get an instrumented test** (`app/src/androidTest`, needs a device).
+- **When you fix a bug, prove the fix**: write the regression test, verify it **FAILS on
+  the old code**, then passes on the new. Say that you did that.
+- If an existing test asserted the buggy behaviour, say so explicitly and replace it —
+  don't bend the fix to keep a wrong test green.
+- **Anything with real decision-making goes in `domain/` as a pure function** so it can
+  be tested without a device. UI stays thin. `PostValidator` is the pattern to copy:
+  no Android imports, clock passed in as a parameter.
+- **Never mark a task done without a passing `assembleDebug`.**
 
-## Files to touch
-- `path` — [what and why]
+## 📲 SHIPPING
 
-## Acceptance criteria
-- [ ] [Specific thing that proves it works]
-- [ ] Builds: `./gradlew assembleDebug` succeeds
-- [ ] Git committed
+- **Install on the emulator/device yourself** after each feature — don't wait to be
+  asked. If the device is disconnected or unauthorized, say so and say what to tap.
+- **Always end with `### 🧪 Manual Test Steps`** — numbered, exactly what to tap and
+  what they should see.
+- **Release ritual**, in this order: bump version → build → publish release with real
+  notes → install. Ask for a quick "works?" before publishing anything public.
 
-## Noticed (not fixing now)
-[Unrelated bugs spotted — blank if none]
-```
+## 📖 IN-APP MANUAL
 
-## 📝 TASK HISTORY FORMAT — `docs/_Task_History.md`
-```
-[DATE] | [task name] | files: A.kt, B.kt | notes: [one sentence — gotchas/decisions]
-```
+A feature isn't finished until the manual describes it — **same batch as the feature**,
+not later. Describe **what the code actually does**, never what it was meant to do.
+- Flag anything undiscoverable by tapping around as a **hidden gem** (gestures,
+  long-press, swipe, shortcuts) with **search keywords in the owner's words**.
+- Use **general, everyday examples** in user-facing text.
+- After an update, show **what's new once**, kept in its own section until the next
+  release replaces it.
+
+*(The manual screen doesn't exist yet — it's scheduled into Phase 6. See ROADMAP.)*
+
+## 🔬 RESEARCH BEFORE BUILDING ON PLATFORM FEATURES
+
+If a feature depends on the OS or a third party (background uploads, notifications,
+exact alarms, an API's rules), **check what's actually possible first — on the real
+device/API, not from memory** — and give a go/no-go with options before writing it.
+This project has already been bitten once by assuming a platform behaviour
+(see Photo Picker URIs in `docs/STATUS.md`).
 
 ---
 
-## 🗺 PROJECT OVERVIEW
-See `autoinsta_Master_Plan.md` for the full phased roadmap and `docs/_Architecture.md`
-for the 1-page technical map. The short version:
+## 📁 DOCS — the project's memory
 
-- **Compose** screens → **ViewModel** → **Repository** → **Room** (local) / **Retrofit** (network).
-- **Room** stores scheduled posts, media refs, hashtag presets, history, account.
-- **AlarmManager + WorkManager** fire each post at its time; **BootReceiver** reschedules after reboot.
-- At fire time `PostWorker` uploads media to **Cloudinary** (gets a public URL) then calls the
-  **Instagram Graph API** to create + publish the container.
+Keep them current; they are how the work survives a new chat, a compaction, or a month away.
+
+```
+docs/
+  specs/YYYY-MM-DD-<topic>-design.md   the APPROVED design, written before building
+  plans/YYYY-MM-DD-<feature>.md        implementation plan: bite-sized tasks
+  STATUS.md                            living: shipped / in-flight / hard-won gotchas
+  ROADMAP.md                           future ideas, sized S/M/L + rough approach
+  ARCHITECTURE.md                      1-page technical map — read this, don't grep
+  SETUP_GUIDE.md                       (Phase 4) Meta + Cloudinary account steps
+autoinsta_Master_Plan.md               phased roadmap + locked decisions
+CLAUDE.md                              this file — the first thing a fresh chat reads
+```
+
+- **STATUS.md is where a mistake goes to die.** When something breaks, record the
+  **root cause and the rule that prevents it**, not just the fix.
+- **ROADMAP.md** catches ideas mentioned in passing so they aren't lost. Nothing there
+  is started without the owner's say-so.
 
 ---
 
-## 📁 FILE STRUCTURE
-```
-autoinsta/
-├── docs/
-│   ├── _Current_Task.md      ← you write the active task here
-│   ├── _Architecture.md      ← 1-page technical reference
-│   ├── _Task_History.md      ← append-only completed-work log
-│   └── SETUP_GUIDE.md        ← (Phase 4) Meta + Cloudinary account steps
-├── autoinsta_Master_Plan.md  ← phased roadmap + locked decisions
-├── prompt.md                 ← open-items scratchpad
-├── CLAUDE.md                 ← this file
-├── secrets.properties        ← API keys (GIT-IGNORED, never commit)
-├── settings.gradle.kts / build.gradle.kts / gradle.properties
-├── gradle/libs.versions.toml ← version catalog (single source of dep versions)
-└── app/
-    ├── build.gradle.kts
-    └── src/main/
-        ├── AndroidManifest.xml
-        ├── java/com/autoinsta/
-        │   ├── AutoInstaApp.kt   MainActivity.kt
-        │   ├── data/  (db/ remote/ repository/ prefs/)
-        │   ├── domain/model/
-        │   ├── scheduler/  (PostScheduler, PostWorker, BootReceiver)
-        │   └── ui/  (theme/ home/ composepost/ presets/ history/ settings/ components/)
-        └── res/
-```
+## 🧱 BUILT vs PLANNED
+
+| Phase | What | State |
+|---|---|---|
+| 0 | Compose skeleton, builds + runs | ✅ Built |
+| 1 | Room data layer — 5 tables, 5 DAOs, 4 repositories | ✅ Built |
+| 2 | Compose-post UI — create/edit/delete, live queue | ✅ Built |
+| 2.5 | Media durability, pure validation, test harness | ✅ Built |
+| 3 | Scheduling engine — `PostScheduler`, `PostWorker`, `BootReceiver` | ⏳ **Next** |
+| 4 | Account connect (Facebook Login → long-lived token) | ⏳ Planned |
+| 5 | Cloudinary upload + real Graph API publish | ⏳ Planned |
+| 6 | Polish, presets screen, **in-app manual** | ⏳ Planned |
+| 7 | Release prep — signing, R8 | ⏳ Planned |
+
+**Today the app is a notes app for future posts** — it remembers what you want to post
+and when, and does nothing at the appointed time. Phase 3 is what makes it fire.
+
+## 🗄 DATA / SCHEMA HISTORY
+
+| Version | Change |
+|---|---|
+| 1 | Initial: `scheduled_posts`, `media_items`, `hashtag_presets`, `post_history`, `account` |
+| 1 (semantic) | `media_items.localUri` changed meaning: was a `content://` picker address, now an **app-private file path**. No schema change — the column is still `TEXT`. |
+
+⚠️ `fallbackToDestructiveMigration()` is still on — **any schema change wipes the user's
+queue**. Replace with real migrations before anyone relies on the app (logged in ROADMAP).
+
+---
+
+## 🧠 CODE CONVENTIONS
+
+- **Kotlin + Compose (Material 3)** only. No Java, no XML layouts.
+- **Layer-first packages** (`data/`, `domain/`, `ui/`) — this is a deliberate,
+  confirmed decision. Don't migrate to feature-first.
+- **MVVM:** Composables are dumb; state + logic in ViewModels; data access in Repositories.
+- **All versions in `gradle/libs.versions.toml`** — never hardcode dep versions.
+- **Coroutines + Flow** for async; `Dispatchers.IO` for DB/network/file I/O.
+- **No network calls outside `data/remote`.** No Room calls outside `data/db`/repositories.
+  **No file I/O outside `data/media`.**
+- **No secrets in source** — always `BuildConfig.*`.
+- **Graph API**: always via `InstagramApi`; never hardcode the version
+  (use `BuildConfig.META_GRAPH_VERSION`).
+- **Nullability:** model API responses as nullable DTOs; validate before use.
+- One class per file; keep files small enough to hold in your head at once.
+- Mirror the source structure in `test/` and `androidTest/`.
 
 ---
 
 ## 🧱 BUILD & RUN
-This machine has Android Studio + SDK (platforms 33–36, build-tools 36/37) and a bundled JDK.
-Java/Gradle are **not on PATH**, and **`gradlew`/`gradlew.bat` FAIL here** because the
-project path contains non-ASCII chars (`C:\سطح المكتب\` = Arabic "Desktop") which cmd/bash
-mangle into a broken classpath. Build by invoking the wrapper's main class directly with a
-**relative** classpath (run from the project root, e.g. in PowerShell):
+
+Android Studio + SDK (platforms 33–36) and a bundled JDK are installed. Java/Gradle are
+**not on PATH**, and **`gradlew`/`gradlew.bat` FAIL here** — the project path contains
+non-ASCII chars (`C:\سطح المكتب\` = Arabic "Desktop") which cmd/bash mangle into a broken
+classpath. Invoke the wrapper's main class directly with a **relative** classpath, from
+the project root, in PowerShell:
+
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 & "$env:JAVA_HOME\bin\java.exe" "-Dorg.gradle.appname=gradlew" "-Dfile.encoding=UTF-8" `
   -classpath "gradle\wrapper\gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain `
   :app:assembleDebug --no-daemon --console=plain
 ```
-Also required: `android.overridePathCheck=true` in `gradle.properties` (AGP blocks
-non-ASCII paths otherwise). Verified the full build works with it.
 
-Easiest path for the owner: **open the folder in Android Studio and press Run** — AS uses
-its own embedded Gradle runner and handles the path fine. **Always confirm a build passes
-(BUILD SUCCESSFUL + an APK in `app/build/outputs/apk/debug/`) before logging a task complete.**
+Swap the task for `:app:testDebugUnitTest` (unit tests), `:app:connectedDebugAndroidTest`
+(instrumented, needs a device), or `:app:lintDebug`.
+
+Also required: `android.overridePathCheck=true` in `gradle.properties`.
+
+**Build output goes to `C:/autoinsta-build`, not `app/build/`.** Anything Gradle *forks*
+(test workers, lint, R8) receives a mangled classpath on this path because
+`sun.jnu.encoding=Cp1252` cannot represent Arabic — see `docs/STATUS.md`. Source stays
+put; only generated output moves. Override with `-PbuildRoot=<path>`.
+Cycle time also dropped from ~5m to ~1m20s as a side effect.
+
+**Install & launch** (Android Studio's Run has silently skipped the install step before):
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+& $adb install -r "C:\autoinsta-build\app\outputs\apk\debug\app-debug.apk"
+& $adb shell am force-stop com.autoinsta
+& $adb shell am start -n com.autoinsta/com.autoinsta.MainActivity
+```
+Emulator: `Pixel_10_Pro` via `$env:LOCALAPPDATA\Android\Sdk\emulator\emulator.exe -avd Pixel_10_Pro`.
 
 ---
 
@@ -158,29 +231,19 @@ A committed `secrets.properties.example` documents the keys with empty values.
 
 ---
 
-## 🧠 CODE CONVENTIONS
-- **Kotlin + Compose (Material 3)** only. No Java, no XML layouts (Compose UI).
-- **MVVM:** Composables are dumb; state + logic live in ViewModels; data access in Repositories.
-- **All versions in `gradle/libs.versions.toml`** — never hardcode dep versions in `build.gradle.kts`.
-- **Coroutines + Flow** for async; `Dispatchers.IO` for DB/network. No blocking the main thread.
-- **No network calls outside `data/remote`.** No Room calls outside `data/db`/repositories.
-- **No secrets in source** — always `BuildConfig.*`.
-- **Graph API**: always go through `InstagramApi`; never hardcode the graph version (use `BuildConfig.META_GRAPH_VERSION`).
-- **Nullability:** model API responses as nullable DTOs; validate before use.
-- **Validate the build** after changes: `./gradlew assembleDebug`.
-
----
-
 ## 🚫 NEVER DO
 1. Commit `secrets.properties` or any real API key / keystore.
 2. Build a UI-automation / bot path that taps the real Instagram app — Graph API only (ToS-safe).
 3. Add a backend server (v1 is on-device only — see Master Plan).
-4. Put network or DB calls inside Composables or ViewModels directly — go through repositories.
+4. Put network, DB, or file I/O inside Composables or ViewModels — go through repositories.
 5. Hardcode the Graph API version, account id, or any credential.
 6. Fix unrelated bugs mid-task — log them under `## Noticed (not fixing now)`.
-7. Skip the git checkpoint or the `_Task_History.md` log.
-8. Mark a task done without a passing `./gradlew assembleDebug`.
+7. Skip the git checkpoint or the `docs/STATUS.md` update.
+8. Mark a task done without a passing `assembleDebug` **and green tests**.
+9. Persist a Photo Picker `content://` URI and expect to read it later — copy the file
+   via `MediaFileStore` (see STATUS.md for why).
 
 ---
 
-*Last updated: 2026-06-07. Update this file when architecture or a locked decision changes.*
+*Last updated: 2026-08-21. Update this file when architecture, a locked decision, or the
+BUILT/PLANNED table changes.*

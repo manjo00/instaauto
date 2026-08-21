@@ -45,6 +45,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.autoinsta.ui.components.mediaModel
 import com.autoinsta.AutoInstaApp
 import com.autoinsta.data.db.entities.MediaItemEntity
 import com.autoinsta.data.db.relations.ScheduledPostWithMedia
@@ -156,7 +157,9 @@ private fun EmptyQueue(padding: PaddingValues) {
     }
 }
 
-private val dateTimeFormat = SimpleDateFormat("EEE, MMM d · h:mm a", Locale.getDefault())
+// Built per-call rather than held in a static: the device locale can change while
+// the app is running, and SimpleDateFormat is not thread-safe to share.
+private fun dateTimeFormat() = SimpleDateFormat("EEE, MMM d · h:mm a", Locale.getDefault())
 
 @Composable
 private fun QueueItemCard(
@@ -199,7 +202,7 @@ private fun QueueItemCard(
                     modifier = Modifier.padding(top = 2.dp),
                 )
                 Text(
-                    text = dateTimeFormat.format(item.post.scheduledAt),
+                    text = dateTimeFormat().format(item.post.scheduledAt),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
@@ -229,7 +232,7 @@ private fun Thumbnail(media: MediaItemEntity?) {
                 media == null -> Icon(Icons.Default.PhotoCamera, contentDescription = null)
                 media.mediaType == MediaType.VIDEO -> Icon(Icons.Default.Movie, contentDescription = null)
                 else -> AsyncImage(
-                    model = media.localUri,
+                    model = mediaModel(media.localUri),
                     contentDescription = null,
                     modifier = Modifier.size(64.dp),
                 )

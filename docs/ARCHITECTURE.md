@@ -27,24 +27,36 @@ free host (Cloudinary unsigned preset) to get the public URL the API requires.
 ```
 data/
   db/        Room: entities (ScheduledPost, MediaItem, HashtagPreset, PostHistory, Account) + DAOs + AppDatabase
-  remote/    InstagramApi (Retrofit), CloudinaryUploader, dto/
-  repository/ PostRepository, PresetRepository, AccountRepository
-  prefs/     TokenStore (EncryptedSharedPreferences)
+  media/     MediaFileStore  — copies picked media into app-private storage  ✅
+  remote/    InstagramApi (Retrofit), CloudinaryUploader, dto/                  ⏳
+  repository/ PostRepository, PresetRepository, AccountRepository, HistoryRepository
+  prefs/     TokenStore (EncryptedSharedPreferences)                            ⏳
 domain/
-  model/     PostType (SINGLE_IMAGE | REEL | CAROUSEL), PostStatus, etc.
+  model/     PostType (SINGLE_IMAGE | REEL | CAROUSEL), PostStatus, MediaType
+  PostValidator.kt  pure scheduling rules — unit-tested, no Android deps        ✅
 scheduler/
   PostScheduler   schedules/cancels exact alarms for a post
   PostWorker      CoroutineWorker — runs the upload→publish pipeline
   BootReceiver    reschedules pending posts after device reboot
 ui/
-  theme/  home/  composepost/  presets/  history/  settings/  components/
+  theme/  home/  composepost/  components/    ✅ built
+  presets/  history/  settings/  manual/     ⏳ planned
 AutoInstaApp.kt   Application (DB + WorkManager init)
 MainActivity.kt   single-activity, Compose NavHost
 ```
 
+## Media storage — why files, not URIs
+`MediaItemEntity.localUri` holds an **app-private file path**
+(`<filesDir>/media/<uuid>.<ext>`), not the `content://` address the Photo Picker
+returned. The picker's read permission dies with the app process, and this app reads
+its media days later — so `MediaFileStore` copies the bytes in at save time. The copy
+is a raw stream copy: no decode, no re-encode, **no quality loss**. Files are deleted
+when their post is deleted or its media replaced. Full reasoning in
+[STATUS.md](STATUS.md#-photo-picker-uris-expire-with-the-process).
+
 ## The publishing pipeline (the heart of the app)
 Runs inside `PostWorker` when the scheduled time fires:
-1. Load the `ScheduledPost` + its `MediaItem`s from Room.
+1. Load the `ScheduledPost` + its `MediaItem`s from Room (media is already local).
 2. Upload each media file to Cloudinary → collect `secure_url`s.
 3. Call Graph API by type:
    - **SINGLE_IMAGE** → `POST /{ig-user-id}/media` (image_url, caption) → container id → `POST /{ig-user-id}/media_publish`

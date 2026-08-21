@@ -30,22 +30,26 @@ Target user: a **digital-art Instagram account** (Creator account).
 
 ## 2. Phased roadmap
 
-> Each phase = a few focused tasks. One `_Current_Task.md` per task. Commit per phase.
+> Each phase = a few focused tasks. One `docs/plans/` file per task. Commit per phase.
 
 ### ✅ Phase 0 — Bootstrap
-### ✅ Phase 1 — Data layer
 Git, docs brain, CLAUDE.md, this plan, **buildable Android skeleton** (launches to a
 placeholder Home). Green baseline.
 
-### Phase 1 — Data layer
+### ✅ Phase 1 — Data layer
 Room entities + DAOs + DB: `ScheduledPost`, `MediaItem`, `HashtagPreset`,
 `PostHistory`, `Account`. Repositories. `PostType`/`PostStatus` domain models.
-Unit-testable, no UI yet.
+No UI yet.
 
 ### ✅ Phase 2 — Compose-post UI (local only)
 Screen to create/edit a scheduled post: media picker (single/multi), caption field,
 hashtag preset picker + free hashtags, date+time picker. Saves to Room. Queue/Home
 list shows scheduled posts. Delete/edit. **No real posting yet** — just persistence.
+
+### ✅ Phase 2.5 — Hardening (unplanned, added 2026-08-21)
+Media durability fix (Photo Picker URIs expire — copy into app storage instead),
+scheduling rules extracted to a pure `PostValidator`, and the first test harness
+(unit + instrumented). See `docs/specs/2026-08-21-media-durability-design.md`.
 
 ### Phase 3 — Scheduling engine
 `PostScheduler` (exact alarms), `PostWorker` (CoroutineWorker stub that just marks
@@ -106,4 +110,4 @@ Account setup steps live in `docs/SETUP_GUIDE.md` (written in Phase 4).
 
 ---
 
-*Last updated: 2026-06-07. Update when scope or a locked decision changes.*
+*Last updated: 2026-08-21. Update when scope or a locked decision changes.*

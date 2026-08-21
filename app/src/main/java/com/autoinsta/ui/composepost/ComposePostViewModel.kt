@@ -3,10 +3,12 @@ package com.autoinsta.ui.composepost
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.autoinsta.data.db.entities.HashtagPresetEntity
-import com.autoinsta.data.db.entities.MediaItemEntity
 import com.autoinsta.data.db.entities.ScheduledPostEntity
+import com.autoinsta.data.repository.MediaToSave
 import com.autoinsta.data.repository.PostRepository
 import com.autoinsta.data.repository.PresetRepository
+import com.autoinsta.domain.PostValidation
+import com.autoinsta.domain.PostValidator
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.PostStatus
 import com.autoinsta.domain.model.PostType
@@ -14,17 +16,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.IOException
 
-/** Maximum items allowed in a carousel (Instagram limit). */
-const val CAROUSEL_MAX_ITEMS = 10
-private const val CAROUSEL_MIN_ITEMS = 2
-
-/** One piece of media the user has picked, before/after it's persisted. */
+/**
+ * One piece of media the user has picked.
+ *
+ * [isImported] is false for something just chosen in the picker (the address is a
+ * short-lived `content://` grant) and true for something loaded back from the
+ * database (already copied into app storage). The repository uses it to avoid
+ * re-copying every file each time an existing post is saved.
+ */
 data class PickedMedia(
     val uri: String,
     val mediaType: MediaType,
-    /** Non-null when this item already existed in the DB (edit mode). */
-    val existingId: Long? = null,
+    val isImported: Boolean = false,
     val existingCloudinaryUrl: String? = null,
 )
 
@@ -47,6 +52,9 @@ data class ComposePostUiState(
 /**
  * Drives the create/edit-post screen. When [postId] is non-null the screen loads
  * the existing post (and its media) and Save performs an update instead of an insert.
+ *
+ * The rules about what makes a post valid live in [PostValidator], not here — this
+ * class only wires state to those rules and turns a failure into a sentence.
  */
 class ComposePostViewModel(
     private val postId: Long?,
@@ -92,7 +100,7 @@ class ComposePostViewModel(
                             PickedMedia(
                                 uri = m.localUri,
                                 mediaType = m.mediaType,
-                                existingId = m.id,
+                                isImported = true,
                                 existingCloudinaryUrl = m.cloudinaryUrl,
                             )
                         },
@@ -107,26 +115,23 @@ class ComposePostViewModel(
 
     fun setPostType(type: PostType) {
         _uiState.update { state ->
-            // Switching away from CAROUSEL keeps only the first item; switching
-            // to CAROUSEL keeps everything already picked.
-            val trimmedMedia = if (type != PostType.CAROUSEL) {
-                state.media.take(1)
-            } else {
-                state.media
-            }
-            state.copy(postType = type, media = trimmedMedia, errorMessage = null)
+            // Switching to a single-file type keeps only the first item; switching to
+            // CAROUSEL keeps everything already picked.
+            val limit = PostValidator.maxMediaFor(type)
+            state.copy(
+                postType = type,
+                media = state.media.take(limit),
+                errorMessage = null,
+            )
         }
     }
 
-    /** Adds newly-picked media, respecting per-type limits. Replaces for single types. */
+    /** Adds newly-picked media, respecting the limit for the current post type. */
     fun addMedia(picked: List<PickedMedia>) {
         if (picked.isEmpty()) return
         _uiState.update { state ->
-            val combined = if (state.postType == PostType.CAROUSEL) {
-                (state.media + picked).take(CAROUSEL_MAX_ITEMS)
-            } else {
-                picked.take(1)
-            }
+            val limit = PostValidator.maxMediaFor(state.postType)
+            val combined = if (limit == 1) picked.take(1) else (state.media + picked).take(limit)
             state.copy(media = combined, errorMessage = null)
         }
     }
@@ -167,9 +172,14 @@ class ComposePostViewModel(
 
     fun save() {
         val state = _uiState.value
-        val validationError = validate(state)
-        if (validationError != null) {
-            _uiState.update { it.copy(errorMessage = validationError) }
+        val validation = PostValidator.validate(
+            postType = state.postType,
+            mediaCount = state.media.size,
+            scheduledAtMillis = state.scheduledAtMillis,
+            nowMillis = System.currentTimeMillis(),
+        )
+        if (validation is PostValidation.Invalid) {
+            _uiState.update { it.copy(errorMessage = messageFor(validation.reason)) }
             return
         }
 
@@ -187,40 +197,44 @@ class ComposePostViewModel(
                 createdAt = if (postId != null) existingCreatedAt else now,
                 workRequestId = existingWorkRequestId,
             )
-            val mediaEntities = state.media.mapIndexed { index, picked ->
-                MediaItemEntity(
-                    id = picked.existingId ?: 0,
-                    postId = postId ?: 0,
+            val media = state.media.map { picked ->
+                MediaToSave(
+                    sourceUri = picked.uri,
                     mediaType = picked.mediaType,
-                    localUri = picked.uri,
-                    cloudinaryUrl = picked.existingCloudinaryUrl,
-                    orderIndex = index,
+                    alreadyImported = picked.isImported,
+                    existingCloudinaryUrl = picked.existingCloudinaryUrl,
                 )
             }
 
-            if (postId != null) {
-                postRepository.updatePost(entity, mediaEntities)
-            } else {
-                postRepository.insertPost(entity, mediaEntities)
+            try {
+                if (postId != null) {
+                    postRepository.updatePost(entity, media)
+                } else {
+                    postRepository.insertPost(entity, media)
+                }
+                _uiState.update { it.copy(isSaving = false, saveComplete = true) }
+            } catch (e: IOException) {
+                // Most likely the picker's temporary read grant expired before save.
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        errorMessage = "Couldn't read one of your files. Pick it again and retry.",
+                    )
+                }
             }
-
-            _uiState.update { it.copy(isSaving = false, saveComplete = true) }
         }
     }
 
-    private fun validate(state: ComposePostUiState): String? {
-        if (state.media.isEmpty()) {
-            return "Add at least one photo or video."
-        }
-        if (state.postType == PostType.CAROUSEL && state.media.size < CAROUSEL_MIN_ITEMS) {
-            return "A carousel needs at least $CAROUSEL_MIN_ITEMS items."
-        }
-        if (state.postType != PostType.CAROUSEL && state.media.size > 1) {
-            return "Only one file is allowed for this post type."
-        }
-        if (state.scheduledAtMillis <= System.currentTimeMillis()) {
-            return "Pick a date and time in the future."
-        }
-        return null
+    private fun messageFor(reason: PostValidation.Reason): String = when (reason) {
+        PostValidation.Reason.NO_MEDIA ->
+            "Add at least one photo or video."
+        PostValidation.Reason.CAROUSEL_TOO_FEW ->
+            "A carousel needs at least ${PostValidator.CAROUSEL_MIN_ITEMS} items."
+        PostValidation.Reason.CAROUSEL_TOO_MANY ->
+            "A carousel can hold at most ${PostValidator.CAROUSEL_MAX_ITEMS} items."
+        PostValidation.Reason.TOO_MANY_FOR_TYPE ->
+            "Only one file is allowed for this post type."
+        PostValidation.Reason.TIME_IN_PAST ->
+            "Pick a date and time in the future."
     }
 }

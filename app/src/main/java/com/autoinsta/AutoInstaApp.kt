@@ -2,6 +2,7 @@ package com.autoinsta
 
 import android.app.Application
 import com.autoinsta.data.db.AppDatabase
+import com.autoinsta.data.media.MediaFileStore
 import com.autoinsta.data.repository.AccountRepository
 import com.autoinsta.data.repository.HistoryRepository
 import com.autoinsta.data.repository.PostRepository
@@ -18,10 +19,14 @@ class AutoInstaApp : Application() {
 
     val database: AppDatabase by lazy { AppDatabase.getInstance(this) }
 
+    /** Owns the copies of picked photos/videos kept in app-private storage. */
+    val mediaFileStore: MediaFileStore by lazy { MediaFileStore(this) }
+
     val postRepository: PostRepository by lazy {
         PostRepository(
             postDao = database.scheduledPostDao(),
             mediaDao = database.mediaItemDao(),
+            mediaFileStore = mediaFileStore,
         )
     }
 

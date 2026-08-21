@@ -59,6 +59,21 @@ android {
         compose = true
         buildConfig = true
     }
+
+    // Static analysis. `abortOnError` makes a lint Error fail the build rather than
+    // printing a report nobody reads. Warnings stay warnings for now — we fix them
+    // as we touch files instead of blocking on a wall of pre-existing ones.
+    lint {
+        abortOnError = true
+        warningsAsErrors = false
+        checkReleaseBuilds = false
+    }
+
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -84,4 +99,19 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
+
+    // ── Unit tests (app/src/test) — pure JVM, no device, run in seconds ──
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.turbine)
+
+    // ── Instrumented tests (app/src/androidTest) — need an emulator/device ──
+    androidTestImplementation(libs.androidx.test.junit)
+    androidTestImplementation(libs.androidx.test.core.ktx)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.room.testing)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.ui.test.junit4)
+    debugImplementation(libs.androidx.ui.test.manifest)
 }

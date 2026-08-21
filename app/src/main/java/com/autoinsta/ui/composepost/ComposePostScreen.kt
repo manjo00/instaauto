@@ -23,7 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Movie
@@ -68,8 +68,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.autoinsta.ui.components.mediaModel
 import com.autoinsta.AutoInstaApp
 import com.autoinsta.data.db.entities.HashtagPresetEntity
+import com.autoinsta.domain.PostValidator
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.PostType
 import java.text.SimpleDateFormat
@@ -118,7 +120,7 @@ fun ComposePostScreen(
         uri?.let { viewModel.addMedia(listOf(it.toPickedMedia(context))) }
     }
     val multiPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia(CAROUSEL_MAX_ITEMS),
+        contract = ActivityResultContracts.PickMultipleVisualMedia(PostValidator.CAROUSEL_MAX_ITEMS),
     ) { uris ->
         if (uris.isNotEmpty()) {
             viewModel.addMedia(uris.map { it.toPickedMedia(context) })
@@ -132,7 +134,7 @@ fun ComposePostScreen(
                 title = { Text(if (state.isEditing) "Edit post" else "New post") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
             )
@@ -283,7 +285,7 @@ private fun MediaPicker(
                 )
             }
             val canAddMore = when (postType) {
-                PostType.CAROUSEL -> media.size < CAROUSEL_MAX_ITEMS
+                PostType.CAROUSEL -> media.size < PostValidator.CAROUSEL_MAX_ITEMS
                 else -> media.isEmpty()
             }
             if (canAddMore) {
@@ -314,7 +316,7 @@ private fun MediaThumbnail(media: PickedMedia, onRemove: () -> Unit) {
                 }
             } else {
                 AsyncImage(
-                    model = media.uri,
+                    model = mediaModel(media.uri),
                     contentDescription = "Selected media",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
@@ -429,8 +431,10 @@ private fun Spacer(heightDp: Int) {
     Box(modifier = Modifier.height(heightDp.dp))
 }
 
-private val dateFormat = SimpleDateFormat("EEE, MMM d yyyy", Locale.getDefault())
-private val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+// Built per-call rather than held in a static: the device locale can change while
+// the app is running, and SimpleDateFormat is not thread-safe to share.
+private fun dateFormat() = SimpleDateFormat("EEE, MMM d yyyy", Locale.getDefault())
+private fun timeFormat() = SimpleDateFormat("h:mm a", Locale.getDefault())
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -450,10 +454,10 @@ private fun ScheduleSection(
         Spacer(8)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = { showDatePicker = true }, modifier = Modifier.weight(1f)) {
-                Text(dateFormat.format(calendar.time))
+                Text(dateFormat().format(calendar.time))
             }
             OutlinedButton(onClick = { showTimePicker = true }, modifier = Modifier.weight(1f)) {
-                Text(timeFormat.format(calendar.time))
+                Text(timeFormat().format(calendar.time))
             }
         }
     }
