@@ -31,7 +31,7 @@ the media has to be trustworthy first.
       `assembleDebug` green. **Regression proven:** all 7 durability tests fail on the
       pre-fix code (`scheduledMediaIsReadableAsAPlainFile` reported the stored value as
       `file:///.../original.jpg` rather than a readable path).
-- [ ] **10. Ship** — conventional commit, private GitHub repo, push.
+- [x] **10. Ship** — committed as `07f34b3`, pushed to https://github.com/manjo00/instaauto (9 commits, `main` tracking `origin/main`).
 
 ## Files touched
 
