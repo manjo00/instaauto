@@ -7,6 +7,7 @@ import com.autoinsta.data.db.entities.MediaItemEntity
 import com.autoinsta.data.db.entities.ScheduledPostEntity
 import com.autoinsta.data.db.relations.ScheduledPostWithMedia
 import com.autoinsta.data.media.MediaFileStore
+import com.autoinsta.scheduler.PostScheduler
 import com.autoinsta.domain.model.MediaType
 import kotlinx.coroutines.flow.Flow
 import com.autoinsta.domain.model.PostStatus
@@ -35,6 +36,7 @@ class PostRepository(
     private val postDao: ScheduledPostDao,
     private val mediaDao: MediaItemDao,
     private val mediaFileStore: MediaFileStore,
+    private val postScheduler: PostScheduler,
 ) {
 
     // ── Observe ────────────────────────────────────────────────────────────
@@ -71,6 +73,7 @@ class PostRepository(
     ): Long {
         val postId = postDao.insert(post)
         mediaDao.insertAll(importAll(media, postId))
+        postScheduler.schedule(postId, post.scheduledAt)
         return postId
     }
 
@@ -96,6 +99,10 @@ class PostRepository(
 
         val keptPaths = imported.map { it.localUri }.toSet()
         mediaFileStore.deleteAll(previousPaths.filterNot { it in keptPaths })
+
+        // The time may have moved; re-arming replaces the old alarm rather than
+        // stacking a second one (the PendingIntent is keyed on the post id).
+        postScheduler.schedule(post.id, post.scheduledAt)
     }
 
     /** Stamp a media item's Cloudinary URL once it has been uploaded. */
@@ -117,8 +124,22 @@ class PostRepository(
      */
     suspend fun deletePost(postId: Long) {
         val paths = mediaDao.getForPost(postId).map { it.localUri }
+        postScheduler.cancel(postId)
         postDao.deleteById(postId)
         mediaFileStore.deleteAll(paths)
+    }
+
+    /** True when the OS will honour to-the-minute alarms; the UI warns when false. */
+    fun canScheduleExact(): Boolean = postScheduler.canScheduleExact()
+
+    /**
+     * Re-arm the alarm for a post whose time changed without its media changing.
+     * [updatePost] with a media list already does this; this is for the plain
+     * metadata-only update path.
+     */
+    suspend fun rescheduleAlarm(postId: Long) {
+        val post = postDao.getById(postId) ?: return
+        postScheduler.schedule(postId, post.post.scheduledAt)
     }
 
     // ── Internal ───────────────────────────────────────────────────────────

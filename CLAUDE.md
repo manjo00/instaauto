@@ -146,14 +146,15 @@ CLAUDE.md                              this file — the first thing a fresh cha
 | 1 | Room data layer — 5 tables, 5 DAOs, 4 repositories | ✅ Built |
 | 2 | Compose-post UI — create/edit/delete, live queue | ✅ Built |
 | 2.5 | Media durability, pure validation, test harness | ✅ Built |
-| 3 | Scheduling engine — `PostScheduler`, `PostWorker`, `BootReceiver` | ⏳ **Next** |
-| 4 | Account connect (Facebook Login → long-lived token) | ⏳ Planned |
+| 3 | Scheduling engine — alarms, worker, boot re-arm, notifications | ✅ Built (publish is a stub) |
+| 4 | Account connect (Facebook Login → long-lived token) | ⏳ **Next** |
 | 5 | Cloudinary upload + real Graph API publish | ⏳ Planned |
 | 6 | Polish, presets screen, **in-app manual** | ⏳ Planned |
 | 7 | Release prep — signing, R8 | ⏳ Planned |
 
-**Today the app is a notes app for future posts** — it remembers what you want to post
-and when, and does nothing at the appointed time. Phase 3 is what makes it fire.
+**Today the app fires on schedule but does not publish.** At the appointed time it wakes,
+checks the media is still on disk, marks the post POSTED, writes history, and notifies
+"would have posted now". Phase 5 replaces that one block with the real Graph API call.
 
 ## 🗄 DATA / SCHEMA HISTORY
 
@@ -161,9 +162,11 @@ and when, and does nothing at the appointed time. Phase 3 is what makes it fire.
 |---|---|
 | 1 | Initial: `scheduled_posts`, `media_items`, `hashtag_presets`, `post_history`, `account` |
 | 1 (semantic) | `media_items.localUri` changed meaning: was a `content://` picker address, now an **app-private file path**. No schema change — the column is still `TEXT`. |
+| 2 | `scheduled_posts.missedPolicy` added (per-post rule for a post whose time passed while the device was off). Real `Migration(1,2)`; **`fallbackToDestructiveMigration()` removed**. |
 
-⚠️ `fallbackToDestructiveMigration()` is still on — **any schema change wipes the user's
-queue**. Replace with real migrations before anyone relies on the app (logged in ROADMAP).
+✅ Real migrations are in place (`data/db/Migrations.kt`). **Every schema change now needs
+a migration there plus a case in `MigrationTest`** — schemas are exported to `app/schemas/`
+and committed, so the test can prove an upgrade preserves data.
 
 ---
 

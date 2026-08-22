@@ -2,6 +2,7 @@ package com.autoinsta.data.db.entities
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.autoinsta.domain.model.MissedPostPolicy
 import com.autoinsta.domain.model.PostStatus
 import com.autoinsta.domain.model.PostType
 
@@ -35,6 +36,12 @@ data class ScheduledPostEntity(
 
     /** When to publish — stored as epoch milliseconds (UTC). */
     val scheduledAt: Long,
+
+    /**
+     * What to do if this post's time passes while the device is off or unable to fire.
+     * Chosen per post — see [MissedPostPolicy]. Added in schema v2.
+     */
+    val missedPolicy: MissedPostPolicy = MissedPostPolicy.POST_IF_RECENT,
 
     /** Row creation time — epoch milliseconds. */
     val createdAt: Long,

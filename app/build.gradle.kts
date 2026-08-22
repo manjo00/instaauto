@@ -16,6 +16,13 @@ val secrets = Properties().apply {
 fun secret(key: String, default: String = ""): String =
     (secrets.getProperty(key) ?: default)
 
+// Room exports a JSON snapshot of every schema version. These are SOURCE artifacts:
+// they get committed, and MigrationTestHelper reads them to prove an upgrade preserves
+// data. Without them there is no way to test a migration.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 android {
     namespace = "com.autoinsta"
     compileSdk = 35
@@ -74,6 +81,11 @@ android {
             isReturnDefaultValues = true
         }
     }
+
+    // Ship the exported schemas into the test APK so MigrationTestHelper can find them.
+    sourceSets {
+        getByName("androidTest").assets.srcDirs(files("$projectDir/schemas"))
+    }
 }
 
 dependencies {
@@ -95,6 +107,9 @@ dependencies {
 
     debugImplementation(libs.androidx.ui.tooling)
 
+    // WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
+
     // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
@@ -110,6 +125,7 @@ dependencies {
     androidTestImplementation(libs.androidx.test.core.ktx)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.room.testing)
+    androidTestImplementation(libs.androidx.work.testing)
     androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)

@@ -1,9 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Needed later for Graph API + Cloudinary uploads. Harmless now. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!--
+      Exact alarms. SCHEDULE_EXACT_ALARM is a *special app access*: denied by default on
+      Android 14+, and grantable only from Settings, not a dialog. Without it the app
+      still posts, just approximately — see PostScheduler.
+
+      Deliberately NOT using USE_EXACT_ALARM (which is auto-granted): the Play Store
+      restricts it to alarm-clock and calendar apps, and this is neither.
+    -->
+    <!--
+      tools:ignore="ProtectedPermissions" — lint is wrong here. The protection level is
+      "signature|privileged|appop"; lint sees the first two and calls it system-only, but
+      the "appop" part is precisely what lets a normal app hold it once the user enables
+      it in Settings. Verified on the test device: 87 regular apps request this permission,
+      six hold it, and live alarms report exactAllowReason=policy_permission.
+    -->
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Alarms do not survive a reboot; BootReceiver re-arms the queue. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Tell the user a post went out, or why it didn't. Runtime dialog on Android 13+. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".AutoInstaApp"
@@ -24,6 +50,30 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Fired by AlarmManager when a post comes due. Not exported: only we trigger it. -->
+        <receiver
+            android:name=".scheduler.AlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.autoinsta.action.POST_DUE" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+          Re-arms pending posts after a restart. Must be exported=false but still
+          declare the system actions it listens for.
+        -->
+        <receiver
+            android:name=".scheduler.BootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

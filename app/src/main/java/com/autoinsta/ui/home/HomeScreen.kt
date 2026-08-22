@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -30,6 +31,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +48,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.autoinsta.ui.components.mediaModel
+import com.autoinsta.ui.components.ExactAlarmBanner
+import com.autoinsta.ui.components.openExactAlarmSettings
+import com.autoinsta.BuildConfig
 import com.autoinsta.AutoInstaApp
 import com.autoinsta.data.db.entities.MediaItemEntity
 import com.autoinsta.data.db.relations.ScheduledPostWithMedia
@@ -77,7 +82,10 @@ fun HomeScreen(
     )
 
     val posts by viewModel.scheduledPosts.collectAsState()
+    val canScheduleExact by viewModel.canScheduleExact.collectAsState()
     var pendingDeleteId by remember { mutableStateOf<Long?>(null) }
+
+    LaunchedEffect(Unit) { viewModel.refreshExactAlarmAvailability() }
 
     Scaffold(
         modifier = modifier,
@@ -89,19 +97,25 @@ fun HomeScreen(
             )
         },
     ) { padding ->
-        if (posts.isEmpty()) {
-            EmptyQueue(padding)
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp, padding.calculateTopPadding() + 16.dp, 16.dp, 96.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp, padding.calculateTopPadding() + 16.dp, 16.dp, 96.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (!canScheduleExact) {
+                item(key = "exact-alarm-banner") {
+                    ExactAlarmBanner(onFixClick = { openExactAlarmSettings(context) })
+                }
+            }
+            if (posts.isEmpty()) {
+                item(key = "empty") { EmptyQueue() }
+            } else {
                 items(posts, key = { it.post.id }) { item ->
                     QueueItemCard(
                         item = item,
                         onClick = { onEditPost(item.post.id) },
                         onDeleteClick = { pendingDeleteId = item.post.id },
+                        onFireSoonClick = { viewModel.fireSoon(item.post.id) },
                     )
                 }
             }
@@ -128,12 +142,11 @@ fun HomeScreen(
 }
 
 @Composable
-private fun EmptyQueue(padding: PaddingValues) {
+private fun EmptyQueue() {
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(padding)
-            .padding(32.dp),
+            .fillMaxWidth()
+            .padding(vertical = 48.dp, horizontal = 16.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -166,6 +179,7 @@ private fun QueueItemCard(
     item: ScheduledPostWithMedia,
     onClick: () -> Unit,
     onDeleteClick: () -> Unit,
+    onFireSoonClick: () -> Unit,
 ) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -207,6 +221,18 @@ private fun QueueItemCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
                 )
+            }
+
+            // Debug builds only: re-time this post to fire in ~20s so the whole
+            // alarm -> worker -> notification path can be checked in one sitting.
+            if (BuildConfig.DEBUG) {
+                IconButton(onClick = onFireSoonClick) {
+                    Icon(
+                        imageVector = Icons.Default.Bolt,
+                        contentDescription = "Fire in 20 seconds (debug)",
+                        tint = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
             }
 
             IconButton(onClick = onDeleteClick) {

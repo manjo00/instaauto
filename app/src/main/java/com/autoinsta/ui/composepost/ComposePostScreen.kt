@@ -39,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -69,10 +70,13 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.autoinsta.ui.components.mediaModel
+import com.autoinsta.ui.components.ExactAlarmBanner
+import com.autoinsta.ui.components.openExactAlarmSettings
 import com.autoinsta.AutoInstaApp
 import com.autoinsta.data.db.entities.HashtagPresetEntity
 import com.autoinsta.domain.PostValidator
 import com.autoinsta.domain.model.MediaType
+import com.autoinsta.domain.model.MissedPostPolicy
 import com.autoinsta.domain.model.PostType
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -106,6 +110,11 @@ fun ComposePostScreen(
     )
 
     val state by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        // The user may have just come back from the Settings page that grants this.
+        viewModel.refreshExactAlarmAvailability()
+    }
 
     LaunchedEffect(state.saveComplete) {
         if (state.saveComplete) {
@@ -199,6 +208,15 @@ fun ComposePostScreen(
             ScheduleSection(
                 scheduledAtMillis = state.scheduledAtMillis,
                 onScheduledAtChange = viewModel::setScheduledAt,
+            )
+
+            if (!state.canScheduleExact) {
+                ExactAlarmBanner(onFixClick = { openExactAlarmSettings(context) })
+            }
+
+            MissedPostSection(
+                selected = state.missedPolicy,
+                onSelect = viewModel::setMissedPolicy,
             )
 
             if (state.errorMessage != null) {
@@ -543,4 +561,62 @@ private fun Uri.toPickedMedia(context: android.content.Context): PickedMedia {
     val mime = context.contentResolver.getType(this)
     val type = if (mime?.startsWith("video/") == true) MediaType.VIDEO else MediaType.IMAGE
     return PickedMedia(uri = toString(), mediaType = type)
+}
+
+/**
+ * What happens if the phone is off or dead when this post was due.
+ *
+ * Per post rather than one app-wide setting, because the right answer genuinely
+ * differs: a time-of-day post landing hours late is worse than not landing, while an
+ * evergreen piece is fine whenever.
+ */
+@Composable
+private fun MissedPostSection(
+    selected: MissedPostPolicy,
+    onSelect: (MissedPostPolicy) -> Unit,
+) {
+    val options = listOf(
+        Triple(
+            MissedPostPolicy.POST_IF_RECENT,
+            "Post if under an hour late",
+            "Skips it if your phone was off longer than that.",
+        ),
+        Triple(
+            MissedPostPolicy.POST_ANYWAY,
+            "Post it anyway",
+            "Goes out whenever the phone is back, however late.",
+        ),
+        Triple(
+            MissedPostPolicy.ASK_ME,
+            "Ask me first",
+            "Waits in the queue until you decide.",
+        ),
+    )
+
+    Column {
+        Text("If the phone is off at that time", style = MaterialTheme.typography.labelLarge)
+        Spacer(8)
+        options.forEach { (policy, title, explanation) ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelect(policy) }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                RadioButton(
+                    selected = selected == policy,
+                    onClick = { onSelect(policy) },
+                )
+                Column(modifier = Modifier.padding(start = 4.dp, top = 12.dp)) {
+                    Text(title, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = explanation,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
 }

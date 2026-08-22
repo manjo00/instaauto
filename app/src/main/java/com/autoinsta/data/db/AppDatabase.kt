@@ -24,8 +24,8 @@ import com.autoinsta.data.db.entities.ScheduledPostEntity
         PostHistoryEntity::class,
         AccountEntity::class,
     ],
-    version = 1,
-    exportSchema = false,
+    version = 2,
+    exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -49,7 +49,9 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DB_NAME,
                 )
-                    .fallbackToDestructiveMigration() // OK for dev; add proper migrations before release
+                    // No destructive fallback: a schema change must migrate the user's
+                    // queue, not delete it. See Migrations.kt.
+                    .addMigrations(*ALL_MIGRATIONS)
                     .build()
                     .also { INSTANCE = it }
             }

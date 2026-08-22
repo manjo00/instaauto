@@ -51,7 +51,7 @@ Media durability fix (Photo Picker URIs expire — copy into app storage instead
 scheduling rules extracted to a pure `PostValidator`, and the first test harness
 (unit + instrumented). See `docs/specs/2026-08-21-media-durability-design.md`.
 
-### Phase 3 — Scheduling engine
+### ✅ Phase 3 — Scheduling engine
 `PostScheduler` (exact alarms), `PostWorker` (CoroutineWorker stub that just marks
 "would post now" + notification), `BootReceiver`. Prove the right post fires at the
 right time end-to-end with a fake publish.
@@ -103,7 +103,9 @@ Account setup steps live in `docs/SETUP_GUIDE.md` (written in Phase 4).
 ---
 
 ## 5. Open risks
-- **Doze reliability** — exact alarms can slip when phone sleeps overnight. Mitigated, not eliminated.
+- ~~**Doze reliability**~~ — **measured, smaller than feared**: 72 wake-ups/hour with the
+  exact-alarm permission on the test device. The real risk is **App Standby buckets** for a
+  low-engagement app, plus the user revoking the exact-alarm permission.
 - **Meta app review** — `instagram_content_publish` may need Meta App Review for non-dev users; fine while the account is a test/developer-linked account. Document in Phase 4.
 - **Reel processing time** — video containers take time; must poll status before publish.
 - **Token expiry** — long-lived token ~60 days; must refresh proactively.

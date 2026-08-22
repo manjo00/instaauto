@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.autoinsta.data.db.AppDatabase
 import com.autoinsta.data.db.entities.ScheduledPostEntity
 import com.autoinsta.data.media.MediaFileStore
+import com.autoinsta.scheduler.PostScheduler
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.PostStatus
 import com.autoinsta.domain.model.PostType
@@ -56,6 +57,10 @@ class MediaDurabilityTest {
             postDao = database.scheduledPostDao(),
             mediaDao = database.mediaItemDao(),
             mediaFileStore = mediaFileStore,
+            // No-op scheduler: these tests are about media on disk. A real one would
+            // arm device alarms keyed on ids from this throwaway in-memory database,
+            // which can collide with the ids of the user's actual posts.
+            postScheduler = NoOpScheduler(context),
         )
         sourceDir = File(context.cacheDir, "durability-test").apply { mkdirs() }
     }
@@ -212,6 +217,13 @@ class MediaDurabilityTest {
 
     private fun mediaDirFileCount(): Int =
         File(context.filesDir, MediaFileStore.MEDIA_DIR_NAME).listFiles()?.size ?: 0
+
+    /** Records nothing, arms nothing. */
+    private class NoOpScheduler(context: Context) : PostScheduler(context) {
+        override fun canScheduleExact() = true
+        override fun schedule(postId: Long, scheduledAtMillis: Long, nowMillis: Long) = Unit
+        override fun cancel(postId: Long) = Unit
+    }
 
     private fun assertArrayEqualsBytes(expected: ByteArray, actual: ByteArray) {
         assertEquals("byte count", expected.size, actual.size)

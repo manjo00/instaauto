@@ -34,10 +34,12 @@ data/
 domain/
   model/     PostType (SINGLE_IMAGE | REEL | CAROUSEL), PostStatus, MediaType
   PostValidator.kt  pure scheduling rules — unit-tested, no Android deps        ✅
-scheduler/
-  PostScheduler   schedules/cancels exact alarms for a post
-  PostWorker      CoroutineWorker — runs the upload→publish pipeline
-  BootReceiver    reschedules pending posts after device reboot
+scheduler/                                                                      ✅
+  PostScheduler   arms/cancels exact alarms; reports whether exact timing is allowed
+  AlarmReceiver   receives the alarm, immediately hands off to the worker
+  PostWorker      CoroutineWorker — the publish pipeline (STUB until Phase 5)
+  BootReceiver    re-arms pending posts after reboot, applying each post's missed rule
+  Notifier        success/failure notifications
 ui/
   theme/  home/  composepost/  components/    ✅ built
   presets/  history/  settings/  manual/     ⏳ planned
@@ -53,6 +55,16 @@ its media days later — so `MediaFileStore` copies the bytes in at save time. T
 is a raw stream copy: no decode, no re-encode, **no quality loss**. Files are deleted
 when their post is deleted or its media replaced. Full reasoning in
 [STATUS.md](STATUS.md#-photo-picker-uris-expire-with-the-process).
+
+## How a post fires
+An **alarm** is a precise doorbell but gives only seconds of execution and does not
+survive reboot. A **worker** survives process death and retries but has loose timing.
+So: `PostScheduler` arms an exact alarm → `AlarmReceiver` fires and does nothing but
+enqueue → `PostWorker` does the real work. `BootReceiver` re-arms everything after a
+restart, because alarms are forgotten on reboot.
+
+Every "when" decision lives in the pure `domain/ScheduleCalculator`, including the
+per-post [MissedPostPolicy] rule for posts whose time passed while the phone was off.
 
 ## The publishing pipeline (the heart of the app)
 Runs inside `PostWorker` when the scheduled time fires:

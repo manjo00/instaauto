@@ -10,6 +10,7 @@ import com.autoinsta.data.repository.PresetRepository
 import com.autoinsta.domain.PostValidation
 import com.autoinsta.domain.PostValidator
 import com.autoinsta.domain.model.MediaType
+import com.autoinsta.domain.model.MissedPostPolicy
 import com.autoinsta.domain.model.PostStatus
 import com.autoinsta.domain.model.PostType
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +45,9 @@ data class ComposePostUiState(
     val presets: List<HashtagPresetEntity> = emptyList(),
     /** Epoch millis for the chosen publish time. Defaults to "now + 1 hour". */
     val scheduledAtMillis: Long = System.currentTimeMillis() + 60L * 60L * 1000L,
+    val missedPolicy: MissedPostPolicy = MissedPostPolicy.POST_IF_RECENT,
+    /** False when Android will not honour to-the-minute alarms; the UI warns. */
+    val canScheduleExact: Boolean = true,
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
     val saveComplete: Boolean = false,
@@ -108,6 +112,7 @@ class ComposePostViewModel(
                     hashtags = existing.post.hashtags,
                     selectedPresetId = existing.post.presetId,
                     scheduledAtMillis = existing.post.scheduledAt,
+                    missedPolicy = existing.post.missedPolicy,
                 )
             }
         }
@@ -166,6 +171,15 @@ class ComposePostViewModel(
         _uiState.update { it.copy(scheduledAtMillis = millis, errorMessage = null) }
     }
 
+    fun setMissedPolicy(policy: MissedPostPolicy) {
+        _uiState.update { it.copy(missedPolicy = policy) }
+    }
+
+    /** Re-read on every screen entry — the user may have just changed it in Settings. */
+    fun refreshExactAlarmAvailability() {
+        _uiState.update { it.copy(canScheduleExact = postRepository.canScheduleExact()) }
+    }
+
     fun consumeSaveComplete() {
         _uiState.update { it.copy(saveComplete = false) }
     }
@@ -194,6 +208,7 @@ class ComposePostViewModel(
                 hashtags = state.hashtags.trim(),
                 presetId = state.selectedPresetId,
                 scheduledAt = state.scheduledAtMillis,
+                missedPolicy = state.missedPolicy,
                 createdAt = if (postId != null) existingCreatedAt else now,
                 workRequestId = existingWorkRequestId,
             )

@@ -15,14 +15,18 @@ Last updated: 2026-08-21
 | 1 — Data layer | Room DB: 5 tables, 5 DAOs, 4 repositories | `kspDebugKotlin` clean, `assembleDebug` green |
 | 2 — Compose UI | Create / edit / delete a scheduled post; live queue | Manual run on emulator |
 | 2.5 — Hardening | Media durability fix, pure validation rules, test harness | 14 unit + 14 instrumented tests, lint 0 errors |
+| 3 — Scheduling engine | Alarms fire posts; stub publish + notification; survives reboot | 32 unit + 25 instrumented on the Fold 7, alarms verified via `dumpsys alarm` |
 
 ## In flight
 
-Nothing. Phase 3 (scheduling engine) is next and not started.
+Nothing. Phase 4 (Instagram account connect) is next and not started.
+
+**Phase 3 caveat:** the app now fires posts, but `PostWorker` is a **stub** — it marks
+POSTED, writes history and notifies, without contacting Instagram. Phase 5 replaces that
+one block.
 
 ## Not built yet
 
-- **Phase 3** — `PostScheduler`, `PostWorker`, `BootReceiver`. *Nothing fires today.*
 - **Phase 4** — Instagram account connect (OAuth).
 - **Phase 5** — Cloudinary upload + real Graph API publish.
 - **Phase 6** — Polish, hashtag-preset management screen, in-app manual.
@@ -62,6 +66,21 @@ unaffected — it uses its embedded Gradle runner.
 **Also required:** `android.overridePathCheck=true` in `gradle.properties`. AGP
 refuses non-ASCII paths by default. Empirically verified the full pipeline (AAPT2,
 manifest merge, native libs, dex) works with it — the project does **not** need moving.
+
+### 🟠 Lint was right once and wrong once — both cost a build
+
+**Right:** `NotificationManagerCompat.notify()` requires `POST_NOTIFICATIONS`. The guard
+existed but lived in a helper method, and lint only proves safety when the check is
+visible *in the same method*. Inlined it.
+
+**Wrong:** `SCHEDULE_EXACT_ALARM` is flagged `ProtectedPermissions` ("only granted to
+system apps"). Its protection level is `signature|privileged|**appop**` — lint reads the
+first two flags and stops. The `appop` part is precisely what lets a normal app hold it
+once the user enables it in Settings. Proven on the device before suppressing: 87 regular
+apps request it, six hold it, live alarms show `exactAllowReason=policy_permission`.
+
+**Rule:** treat a lint error as correct until the platform proves otherwise — and when
+suppressing, record the evidence next to the suppression, not in a commit message.
 
 ### 🔴 Forked JVMs get a mangled classpath — build output must stay ASCII
 **Symptom:** `testDebugUnitTest` failed with
@@ -125,10 +144,12 @@ Cost a full failed build each. All three are import problems, not logic problems
 
 ## Known risks still open
 
-- **`fallbackToDestructiveMigration()` is on.** Any schema change wipes the user's
-  scheduled posts. Must be replaced with a real migration before anyone relies on the app.
-- **Doze / exact alarms** may slip overnight. Inherent to on-device scheduling;
-  to be measured in Phase 3, not assumed.
+- **App Standby buckets.** Measured active on the Fold 7. autoinsta is a
+  "set it and forget it" app, the usage pattern most likely to be demoted to a low-priority
+  bucket. Doze itself is *not* the constraint (72 wake-ups/hour with the permission) — this
+  is. Needs measuring over several days.
+- **Exact-alarm permission can be revoked** at any time in Settings, silently degrading
+  timing. The queue banner is the mitigation.
 - **Meta App Review** may be required for `instagram_content_publish` on non-developer
   accounts. To be confirmed in Phase 4 against the real API before building on it.
 - **No in-app manual exists.** Per project convention a feature isn't done until the
