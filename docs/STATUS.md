@@ -16,7 +16,7 @@ Last updated: 2026-08-21
 | 2 — Compose UI | Create / edit / delete a scheduled post; live queue | Manual run on emulator |
 | 2.5 — Hardening | Media durability fix, pure validation rules, test harness | 14 unit + 14 instrumented tests, lint 0 errors |
 | 3 — Scheduling engine | Alarms fire posts; stub publish + notification; survives reboot | 32 unit + 25 instrumented on the Fold 7, alarms verified via `dumpsys alarm` |
-| 4 — Account connect | Instagram login via Custom Tabs; 60-day token, auto-refresh | 59 unit tests; **connected to the real account**, row written, token encrypted at rest |
+| 4 — Account connect | Instagram login via Custom Tabs; 60-day token, auto-renewed | 59 unit + 28 instrumented on the Fold 7; **connected to the real account**, token encrypted, weekly renewal job verified in `dumpsys jobscheduler` |
 
 ## In flight
 
@@ -218,8 +218,11 @@ Cost a full failed build each. All three are import problems, not logic problems
   timing. The queue banner is the mitigation.
 - ~~**Meta App Review**~~ — **resolved**: only needed for apps serving accounts you do not
   own. Standard Access covers this app.
-- **The login expires after 60 days** without a refresh, and refresh only happens on app
-  launch. Leaving the app unopened for two months means reconnecting by hand.
+- ~~**The login expires after 60 days**~~ — **mitigated**: renewal now runs on app launch,
+  on a weekly background job (`TokenRefreshWorker`), and immediately before each publish.
+  Weekly against a 60-day window means ~8 consecutive misses before any danger. Residual
+  risk: an OEM that aggressively kills background work could still starve it, which is
+  the same App Standby concern that affects posting.
 - **The OAuth bounce page depends on GitHub Pages staying up** and the repo staying
   public. If either changes, login breaks until the redirect URI is re-pointed.
 - **No in-app manual exists.** Per project convention a feature isn't done until the

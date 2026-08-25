@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import com.autoinsta.scheduler.PostScheduler
+import com.autoinsta.scheduler.TokenRefreshWorker
 
 /**
  * Application entry point. Owns the DB singleton and repository instances.
@@ -69,10 +70,12 @@ class AutoInstaApp : Application() {
         // Cheap and idempotent; must exist before any notification is posted.
         notifier.ensureChannel()
 
-        // Instagram tokens die after 60 days without a refresh, and the app may sit
-        // unopened for weeks. Every launch is a chance to keep it alive; the call is a
-        // no-op unless a refresh is actually due.
+        // Instagram tokens die permanently after 60 days without a refresh. Two safety
+        // nets, because this app is designed to be left alone:
+        //   1. every launch — free, and covers the person who does open the app
+        //   2. a weekly background job — covers the person who does not
         applicationScope.launch { accountRepository.refreshIfNeeded() }
+        TokenRefreshWorker.schedule(this)
     }
 
     /** Lives as long as the process — for work that must not die with a screen. */

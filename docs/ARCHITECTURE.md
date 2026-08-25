@@ -43,6 +43,7 @@ scheduler/                                                                      
   PostWorker      CoroutineWorker — the publish pipeline (STUB until Phase 5)
   BootReceiver    re-arms pending posts after reboot, applying each post's missed rule
   Notifier        success/failure notifications
+  TokenRefreshWorker  weekly job that stops the Instagram login lapsing
 ui/
   theme/  home/  composepost/  components/    ✅ built
   settings/                                  ✅ built (account connect)

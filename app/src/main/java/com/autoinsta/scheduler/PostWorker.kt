@@ -61,6 +61,10 @@ class PostWorker(
 
         repository.updateStatus(postId, PostStatus.POSTING)
 
+        // Publishing is the one moment a valid token actually matters, and this worker
+        // may be the only thing that runs for weeks. Cheap, and a no-op unless due.
+        app.accountRepository.refreshIfNeeded()
+
         // The Phase 2.5 media work is what makes this check meaningful: these are our own
         // files, so a missing one is a real problem rather than an expired permission.
         val missing = post.mediaItems.filterNot { File(it.localUri).canRead() }
