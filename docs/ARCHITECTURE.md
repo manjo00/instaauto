@@ -28,12 +28,15 @@ free host (Cloudinary unsigned preset) to get the public URL the API requires.
 data/
   db/        Room: entities (ScheduledPost, MediaItem, HashtagPreset, PostHistory, Account) + DAOs + AppDatabase
   media/     MediaFileStore  — copies picked media into app-private storage  ✅
-  remote/    InstagramApi (Retrofit), CloudinaryUploader, dto/                  ⏳
+  remote/    InstagramAuthApi + dto/ ✅ · NetworkModule ✅ · OAuthRedirectBus ✅
+             InstagramApi (publishing), CloudinaryUploader                       ⏳
   repository/ PostRepository, PresetRepository, AccountRepository, HistoryRepository
-  prefs/     TokenStore (EncryptedSharedPreferences)                            ⏳
+  prefs/     TokenStore (EncryptedSharedPreferences)                            ✅
 domain/
   model/     PostType (SINGLE_IMAGE | REEL | CAROUSEL), PostStatus, MediaType
-  PostValidator.kt  pure scheduling rules — unit-tested, no Android deps        ✅
+  PostValidator.kt     pure post rules — unit-tested, no Android deps           ✅
+  ScheduleCalculator.kt when things fire, missed-post rules                      ✅
+  TokenLifecycle.kt    when the Instagram login needs refreshing                 ✅
 scheduler/                                                                      ✅
   PostScheduler   arms/cancels exact alarms; reports whether exact timing is allowed
   AlarmReceiver   receives the alarm, immediately hands off to the worker
@@ -42,7 +45,8 @@ scheduler/                                                                      
   Notifier        success/failure notifications
 ui/
   theme/  home/  composepost/  components/    ✅ built
-  presets/  history/  settings/  manual/     ⏳ planned
+  settings/                                  ✅ built (account connect)
+  presets/  history/  manual/                ⏳ planned
 AutoInstaApp.kt   Application (DB + WorkManager init)
 MainActivity.kt   single-activity, Compose NavHost
 ```
@@ -80,7 +84,9 @@ Runs inside `PostWorker` when the scheduled time fires:
 ## Instagram Graph API (v21.0)
 - Base: `https://graph.facebook.com/v21.0/`
 - Account discovery: `GET /me/accounts` → page id → `GET /{page-id}?fields=instagram_business_account` → ig-user-id
-- Required permissions: `instagram_basic`, `instagram_content_publish`, `pages_show_list`, `pages_read_engagement`, `business_management`
+- **Login: Business Login for Instagram** (no Facebook Page). Host `graph.instagram.com`.
+- Required permissions: `instagram_business_basic`, `instagram_business_content_publish`
+- **No App Review needed** for posting to an account you own (Standard Access).
 - Long-lived token: ~60 days; refresh before expiry on app launch.
 - Rate limit: ~50 published posts / 24h per account (well above any human need).
 

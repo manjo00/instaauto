@@ -16,18 +16,19 @@ Last updated: 2026-08-21
 | 2 — Compose UI | Create / edit / delete a scheduled post; live queue | Manual run on emulator |
 | 2.5 — Hardening | Media durability fix, pure validation rules, test harness | 14 unit + 14 instrumented tests, lint 0 errors |
 | 3 — Scheduling engine | Alarms fire posts; stub publish + notification; survives reboot | 32 unit + 25 instrumented on the Fold 7, alarms verified via `dumpsys alarm` |
+| 4 — Account connect | Instagram login via Custom Tabs; 60-day token, auto-refresh | 59 unit tests; **connected to the real account**, row written, token encrypted at rest |
 
 ## In flight
 
-Nothing. Phase 4 (Instagram account connect) is next and not started.
+Nothing. Phase 5 (Cloudinary upload + real Graph API publish) is next and not started.
 
-**Phase 3 caveat:** the app now fires posts, but `PostWorker` is a **stub** — it marks
-POSTED, writes history and notifies, without contacting Instagram. Phase 5 replaces that
-one block.
+**Where the app actually is:** it schedules posts, fires them on time, and is connected to
+a real Instagram account with a valid 60-day token — but `PostWorker` is still a **stub**.
+At the appointed time it verifies the media, marks the post POSTED, writes history and
+notifies, without contacting Instagram. Phase 5 replaces that one block.
 
 ## Not built yet
 
-- **Phase 4** — Instagram account connect (OAuth).
 - **Phase 5** — Cloudinary upload + real Graph API publish.
 - **Phase 6** — Polish, hashtag-preset management screen, in-app manual.
 - **Phase 7** — Release prep.
@@ -215,7 +216,11 @@ Cost a full failed build each. All three are import problems, not logic problems
   is. Needs measuring over several days.
 - **Exact-alarm permission can be revoked** at any time in Settings, silently degrading
   timing. The queue banner is the mitigation.
-- **Meta App Review** may be required for `instagram_content_publish` on non-developer
-  accounts. To be confirmed in Phase 4 against the real API before building on it.
+- ~~**Meta App Review**~~ — **resolved**: only needed for apps serving accounts you do not
+  own. Standard Access covers this app.
+- **The login expires after 60 days** without a refresh, and refresh only happens on app
+  launch. Leaving the app unopened for two months means reconnecting by hand.
+- **The OAuth bounce page depends on GitHub Pages staying up** and the repo staying
+  public. If either changes, login breaks until the redirect URI is re-pointed.
 - **No in-app manual exists.** Per project convention a feature isn't done until the
   manual describes it — currently nothing is described.

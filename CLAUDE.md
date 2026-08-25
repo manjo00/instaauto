@@ -126,7 +126,8 @@ docs/
   STATUS.md                            living: shipped / in-flight / hard-won gotchas
   ROADMAP.md                           future ideas, sized S/M/L + rough approach
   ARCHITECTURE.md                      1-page technical map — read this, don't grep
-  SETUP_GUIDE.md                       (Phase 4) Meta + Cloudinary account steps
+  SETUP_GUIDE.md                       Meta + Cloudinary account steps (written)
+  oauth/index.html                     OAuth bounce page, served by GitHub Pages
 autoinsta_Master_Plan.md               phased roadmap + locked decisions
 CLAUDE.md                              this file — the first thing a fresh chat reads
 ```
@@ -147,14 +148,20 @@ CLAUDE.md                              this file — the first thing a fresh cha
 | 2 | Compose-post UI — create/edit/delete, live queue | ✅ Built |
 | 2.5 | Media durability, pure validation, test harness | ✅ Built |
 | 3 | Scheduling engine — alarms, worker, boot re-arm, notifications | ✅ Built (publish is a stub) |
-| 4 | Account connect (Facebook Login → long-lived token) | ⏳ **Next** |
-| 5 | Cloudinary upload + real Graph API publish | ⏳ Planned |
+| 4 | Account connect — Business Login for Instagram, 60-day token | ✅ Built |
+| 5 | Cloudinary upload + real Graph API publish | ⏳ **Next** |
 | 6 | Polish, presets screen, **in-app manual** | ⏳ Planned |
 | 7 | Release prep — signing, R8 | ⏳ Planned |
 
-**Today the app fires on schedule but does not publish.** At the appointed time it wakes,
-checks the media is still on disk, marks the post POSTED, writes history, and notifies
-"would have posted now". Phase 5 replaces that one block with the real Graph API call.
+**Today the app fires on schedule and is connected to a real Instagram account, but does
+not publish.** At the appointed time it wakes, checks the media is still on disk, marks
+the post POSTED, writes history, and notifies "would have posted now". Phase 5 replaces
+that one block with the real Graph API call.
+
+⚠️ **Never put an OAuth login in a WebView** — Instagram's renders blank inside one, with
+no error. Custom Tabs only. And **Meta rejects custom-scheme redirect URIs**; the app uses
+an https bounce page (`docs/oauth/index.html`, served by GitHub Pages) that forwards to
+`autoinsta://oauth`. See `docs/STATUS.md`.
 
 ## 🗄 DATA / SCHEMA HISTORY
 

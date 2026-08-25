@@ -56,10 +56,12 @@ scheduling rules extracted to a pure `PostValidator`, and the first test harness
 "would post now" + notification), `BootReceiver`. Prove the right post fires at the
 right time end-to-end with a fake publish.
 
-### Phase 4 — Account connect (OAuth)
-**Business Login for Instagram** in an in-app WebView → authorization code → short-lived
-token → long-lived (60-day) token → store encrypted. Settings screen shows the connected
-account. Refresh on launch. See `docs/SETUP_GUIDE.md` for the account setup this depends on.
+### ✅ Phase 4 — Account connect (OAuth)
+**Business Login for Instagram** via **Chrome Custom Tabs** → authorization code →
+short-lived token → long-lived (60-day) token → stored encrypted. Settings shows the
+connected account and days remaining; refresh runs on launch. A WebView was tried first
+and does not work — see `docs/plans/2026-08-25-account-connect.md`.
+Account setup: `docs/SETUP_GUIDE.md`.
 
 ### Phase 5 — Media upload + real publish
 `CloudinaryUploader` (unsigned). Wire `PostWorker` to the real Graph API pipeline for
@@ -81,7 +83,7 @@ Signing config, ProGuard/R8 rules, Play Store $25 (only if publishing publicly).
 | Posting method | Official Graph API | Only ToS-safe path; supports Reels/carousels natively |
 | Account type | Creator/Business | Required by Graph API; free; looks the same to followers |
 | **Login type** | **Business Login for Instagram** | **Revised 2026-08-25** (was Facebook Login). Meta's Instagram-Login path needs **no Facebook Page** and 2 permissions instead of 5, removing the Page Publishing Authorization failure mode. Host is `graph.instagram.com`. |
-| OAuth callback | In-app WebView intercept | Meta's redirect URIs appear HTTPS-only, and v1 has no server. The app watches for the redirect and reads the code from the URL — no domain or hosting needed. |
+| OAuth callback | **Chrome Custom Tabs + GitHub Pages bounce page** | **Revised 2026-08-25.** A WebView was tried first and failed — Meta's login renders blank inside one. Meta also rejects custom-scheme redirect URIs, so an https page on GitHub Pages forwards to `autoinsta://oauth`, which the app claims. Still no server. |
 | Scheduling | On-device (Alarm+Work) | User wants no server; acceptable for art account |
 | Media host | Cloudinary free tier | Graph API needs a public URL; 25GB free is plenty |
 | compileSdk / minSdk | 35 / 26 | Modern APIs; covers ~95%+ devices |
@@ -98,7 +100,7 @@ META_APP_SECRET=...
 META_GRAPH_VERSION=v21.0
 CLOUDINARY_CLOUD_NAME=...
 CLOUDINARY_UPLOAD_PRESET=...
-OAUTH_REDIRECT_URI=https://autoinsta.local/oauth
+OAUTH_REDIRECT_URI=https://<user>.github.io/<repo>/oauth
 ```
 Account setup steps live in **`docs/SETUP_GUIDE.md`** — written, and a hard
 prerequisite for Phases 4 and 5.
@@ -115,9 +117,9 @@ prerequisite for Phases 4 and 5.
 - **JPEG only** — Meta rejects PNG outright. Digital art is often exported as PNG, so
   those files must be converted (lossy) somewhere in the pipeline. JPEG originals are
   unaffected. Handle in Phase 5 via Cloudinary delivery format.
-- **Redirect URI format unconfirmed** — Meta's docs only show HTTPS examples and never
-  mention custom schemes. The WebView-intercept approach sidesteps it, but Meta has been
-  known to block embedded webviews for login; to be proven in Phase 4 testing.
+- ~~**Redirect URI format unconfirmed**~~ — **settled by testing**: Meta accepts https only
+  and rejects custom schemes outright. Embedded webviews are blocked. Solved with Custom
+  Tabs plus a GitHub Pages bounce page.
 - **Reel processing time** — video containers take time; must poll status before publish.
 - **Token expiry** — long-lived token ~60 days; must refresh proactively.
 
