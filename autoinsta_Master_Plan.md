@@ -16,7 +16,7 @@ Target user: a **digital-art Instagram account** (Creator account).
 - **Hashtag presets** — saved, pre-written hashtag sets reusable per post.
 - A **queue** screen: upcoming scheduled posts + a **history** of what already posted.
 - Edit / delete a scheduled post before it fires.
-- Connect Instagram (Creator) account via Facebook Login; auto-refresh token.
+- Connect Instagram (Creator) account via Business Login for Instagram; auto-refresh token.
 - Reliable-as-possible on-device firing (exact alarm + WorkManager + reschedule on reboot).
 - Failure handling: retry, error surfaced, notification on success/failure.
 
@@ -57,9 +57,9 @@ scheduling rules extracted to a pure `PostValidator`, and the first test harness
 right time end-to-end with a fake publish.
 
 ### Phase 4 — Account connect (OAuth)
-Facebook Login via Chrome Custom Tabs → token → exchange for long-lived → discover
-ig-user-id → store encrypted. Settings screen shows connected account. Token refresh
-on launch.
+**Business Login for Instagram** in an in-app WebView → authorization code → short-lived
+token → long-lived (60-day) token → store encrypted. Settings screen shows the connected
+account. Refresh on launch. See `docs/SETUP_GUIDE.md` for the account setup this depends on.
 
 ### Phase 5 — Media upload + real publish
 `CloudinaryUploader` (unsigned). Wire `PostWorker` to the real Graph API pipeline for
@@ -80,6 +80,8 @@ Signing config, ProGuard/R8 rules, Play Store $25 (only if publishing publicly).
 |---|---|---|
 | Posting method | Official Graph API | Only ToS-safe path; supports Reels/carousels natively |
 | Account type | Creator/Business | Required by Graph API; free; looks the same to followers |
+| **Login type** | **Business Login for Instagram** | **Revised 2026-08-25** (was Facebook Login). Meta's Instagram-Login path needs **no Facebook Page** and 2 permissions instead of 5, removing the Page Publishing Authorization failure mode. Host is `graph.instagram.com`. |
+| OAuth callback | In-app WebView intercept | Meta's redirect URIs appear HTTPS-only, and v1 has no server. The app watches for the redirect and reads the code from the URL — no domain or hosting needed. |
 | Scheduling | On-device (Alarm+Work) | User wants no server; acceptable for art account |
 | Media host | Cloudinary free tier | Graph API needs a public URL; 25GB free is plenty |
 | compileSdk / minSdk | 35 / 26 | Modern APIs; covers ~95%+ devices |
@@ -96,9 +98,10 @@ META_APP_SECRET=...
 META_GRAPH_VERSION=v21.0
 CLOUDINARY_CLOUD_NAME=...
 CLOUDINARY_UPLOAD_PRESET=...
-OAUTH_REDIRECT_SCHEME=autoinsta
+OAUTH_REDIRECT_URI=https://autoinsta.local/oauth
 ```
-Account setup steps live in `docs/SETUP_GUIDE.md` (written in Phase 4).
+Account setup steps live in **`docs/SETUP_GUIDE.md`** — written, and a hard
+prerequisite for Phases 4 and 5.
 
 ---
 
@@ -106,10 +109,18 @@ Account setup steps live in `docs/SETUP_GUIDE.md` (written in Phase 4).
 - ~~**Doze reliability**~~ — **measured, smaller than feared**: 72 wake-ups/hour with the
   exact-alarm permission on the test device. The real risk is **App Standby buckets** for a
   low-engagement app, plus the user revoking the exact-alarm permission.
-- **Meta app review** — `instagram_content_publish` may need Meta App Review for non-dev users; fine while the account is a test/developer-linked account. Document in Phase 4.
+- ~~**Meta app review**~~ — **resolved 2026-08-25**: Meta requires App Review + Business
+  Verification only for apps serving accounts the developer does *not* own. Posting to
+  your own account is **Standard Access**, the default. No review needed.
+- **JPEG only** — Meta rejects PNG outright. Digital art is often exported as PNG, so
+  those files must be converted (lossy) somewhere in the pipeline. JPEG originals are
+  unaffected. Handle in Phase 5 via Cloudinary delivery format.
+- **Redirect URI format unconfirmed** — Meta's docs only show HTTPS examples and never
+  mention custom schemes. The WebView-intercept approach sidesteps it, but Meta has been
+  known to block embedded webviews for login; to be proven in Phase 4 testing.
 - **Reel processing time** — video containers take time; must poll status before publish.
 - **Token expiry** — long-lived token ~60 days; must refresh proactively.
 
 ---
 
-*Last updated: 2026-08-21. Update when scope or a locked decision changes.*
+*Last updated: 2026-08-25. Update when scope or a locked decision changes.*
