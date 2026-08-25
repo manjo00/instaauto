@@ -3,11 +3,17 @@ package com.autoinsta
 import android.app.Application
 import com.autoinsta.data.db.AppDatabase
 import com.autoinsta.data.media.MediaFileStore
+import com.autoinsta.data.prefs.TokenStore
+import com.autoinsta.data.remote.NetworkModule
 import com.autoinsta.data.repository.AccountRepository
 import com.autoinsta.data.repository.HistoryRepository
 import com.autoinsta.data.repository.PostRepository
 import com.autoinsta.data.repository.PresetRepository
 import com.autoinsta.scheduler.Notifier
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import com.autoinsta.scheduler.PostScheduler
 
 /**
@@ -43,8 +49,15 @@ class AutoInstaApp : Application() {
         PresetRepository(presetDao = database.hashtagPresetDao())
     }
 
+    /** The Instagram access token, encrypted at rest (not in Room — see TokenStore). */
+    val tokenStore: TokenStore by lazy { TokenStore(this) }
+
     val accountRepository: AccountRepository by lazy {
-        AccountRepository(accountDao = database.accountDao())
+        AccountRepository(
+            accountDao = database.accountDao(),
+            tokenStore = tokenStore,
+            authApi = NetworkModule.instagramAuthApi,
+        )
     }
 
     val historyRepository: HistoryRepository by lazy {
@@ -55,5 +68,13 @@ class AutoInstaApp : Application() {
         super.onCreate()
         // Cheap and idempotent; must exist before any notification is posted.
         notifier.ensureChannel()
+
+        // Instagram tokens die after 60 days without a refresh, and the app may sit
+        // unopened for weeks. Every launch is a chance to keep it alive; the call is a
+        // no-op unless a refresh is actually due.
+        applicationScope.launch { accountRepository.refreshIfNeeded() }
     }
+
+    /** Lives as long as the process — for work that must not die with a screen. */
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 }

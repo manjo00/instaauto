@@ -103,6 +103,21 @@ evidence that a task works — run the actual task.
 
 **Bonus:** build cycle dropped from 5m23s to ~1m20s once output left the non-ASCII path.
 
+### 🟠 Editing `secrets.properties` does not rebuild BuildConfig
+**Symptom:** filled in real credentials, rebuilt, and `BuildConfig.META_APP_ID` was still
+`""`. No error — the app would just fail to log in with a confusing API error.
+
+**Root cause:** `secrets.properties` is read at Gradle *configuration* time, but it is not
+declared as an input to `generateDebugBuildConfig`. Gradle sees the task as UP-TO-DATE and
+skips it, so the generated file keeps the previous values.
+
+**Fix:** after changing `secrets.properties`, force it:
+`:app:generateDebugBuildConfig --rerun-tasks` (or a clean build).
+
+**Rule:** after editing secrets, always verify the value actually landed:
+`C:/autoinsta-build/app/generated/source/buildConfig/debug/com/autoinsta/BuildConfig.java`.
+Never assume a credential reached the app because the file on disk looks right.
+
 ### 🟠 Android Studio's Run can silently not install
 **Symptom:** "I don't see the app in the emulator" — but `assembleDebug` had succeeded
 and the APK was on disk.

@@ -1,170 +1,219 @@
-# SETUP GUIDE — accounts and credentials
+# SETUP GUIDE — step by step
 
-**This is the one part of the project that has to be done by hand.** Nothing in Phase 4
-or 5 can be tested until it's finished, because the app needs real credentials to talk
-to Instagram.
+**What this is:** Instagram won't let a random app post to your account. You have to
+register your app with Meta (Instagram's owner) and give it permission. These steps get
+you two passwords that let autoinsta prove it's allowed to post for you.
 
-Budget **30–45 minutes**. Everything here is free.
+**Time:** ~30 minutes · **Cost:** free · **You'll need:** your phone and your computer
 
-Last updated: 2026-08-25 · verified against Meta's docs on that date
-
----
-
-## What you're setting up and why
-
-Instagram doesn't let apps post by pretending to be you. Instead you register an
-"app" with Meta, and your Instagram account grants that app permission to post on your
-behalf. The credentials below are how autoinsta identifies itself as that app.
-
-Two pieces of good news, both confirmed in Meta's current docs:
-
-- **No Facebook Page needed.** Meta's newer "Business Login for Instagram" works with
-  an Instagram account on its own. (Their older path required a linked Facebook Page.)
-- **No App Review needed.** Review and Business Verification are only required for apps
-  serving accounts *someone else* owns. Yours serves your own account, which Meta calls
-  **Standard Access** — the default.
+Work through this in order. If a screen doesn't look like what I describe, stop and tell
+me what you see — Meta changes this dashboard often.
 
 ---
 
-## Part 1 — Make your Instagram account a Creator account
+# STEP 1 — Switch Instagram to a Creator account
+### 📱 On your phone
 
-Required: the API refuses to publish to a personal account.
+Instagram blocks apps from posting to *personal* accounts. Creator accounts are free and
+your followers see no difference.
 
-1. Instagram app → your profile → **☰** → **Settings and privacy**
-2. Search for **Account type** (sometimes under *Creator tools* or *Account type and tools*)
-3. Tap **Switch to professional account** → choose **Creator**
-4. Pick any category (e.g. *Digital Creator* or *Artist*)
-5. If it offers to connect a Facebook Page, you can **skip it** — we don't need one
+1. Open **Instagram**
+2. Tap your **profile picture** (bottom right)
+3. Tap the **☰ three lines** (top right)
+4. Tap **Settings and privacy**
+5. In the search box at the top, type: **account type**
+6. Tap **Account type and tools**
+7. Tap **Switch to professional account**
+8. Tap through the intro screens
+9. Choose a category — **Digital Creator** or **Artist** is fine
+10. Choose **Creator** (not Business)
+11. If it asks to connect a Facebook Page → **Skip**. You don't need one.
 
-> Your followers see no difference. You can switch back any time.
+✅ **Done when:** your profile shows professional tools (you'll see "Professional
+dashboard" on your profile).
 
 ---
 
-## Part 2 — Create the Meta app
+# STEP 2 — Create your Meta app
+### 💻 On your computer
 
-1. Go to **https://developers.facebook.com/** and log in with Facebook
-   - First time only: accept the developer terms and verify by phone/email
-2. **My Apps** → **Create App**
-3. **App name:** anything (e.g. `autoinsta`) — only you see it
-4. When asked what you want to do, choose the use case about
+1. Go to **https://developers.facebook.com/**
+2. Click **Log in** (top right) and log in with **Facebook**
+   - No Facebook account? You'll need to make one. It doesn't need to be used for anything else.
+3. First time only: it may ask you to verify your phone number or email → do that
+4. Click **My Apps** (top right)
+5. Click the green **Create app** button
+6. **App name:** type `autoinst` — note the missing final "a"
+   - Meta **blocks any name containing "insta"** as a trademark term. The name here is
+     cosmetic; only you see it, and it has no connection to what your phone app is called.
+7. **Contact email:** your email
+8. Click **Next**
+9. It asks *what do you want your app to do?* → choose the option about
    **managing messaging and content on Instagram**
-   - If you're shown app *types* instead, pick **Business**
-5. Create the app
+   - If instead it shows a list of app *types*, pick **Business**
+10. Click **Next** → **Create app**
+11. It may ask for your Facebook password → enter it
+
+✅ **Done when:** you're looking at a dashboard with your app's name at the top.
 
 ---
 
-## Part 3 — Turn on Instagram login
+# STEP 3 — Get your two passwords
+### 💻 On your computer
 
-1. In your new app's dashboard, find **Instagram** in the left sidebar
-   (add the **Instagram** product if it isn't there yet)
-2. Open **API setup with Instagram login**
-3. Work through the numbered steps on that page. The one that matters is
-   **Set up Instagram business login** → **Business login settings**
+This is the important step. **Read carefully — there are two similar-looking values and
+picking the wrong one is the #1 thing that breaks.**
 
-### The two values autoinsta needs
+1. In the left sidebar, find and click **Instagram**
+   - Don't see it? Look for **Add product** or **+ Add products**, find **Instagram**, click **Set up**
+2. Click **API setup with Instagram login**
+3. You'll see numbered sections. Find the one called
+   **3. Set up Instagram business login**
+4. Click **Business login settings**
 
-On that same **Business login settings** panel:
+You'll now see a panel with several values. You want these two:
 
-| Copy this | Into `secrets.properties` as |
+| Look for | What it looks like |
 |---|---|
-| **Instagram App ID** | `META_APP_ID` |
-| **Instagram App Secret** | `META_APP_SECRET` |
+| **Instagram App ID** | a long number, e.g. `990602627938098` |
+| **Instagram App Secret** | letters and numbers — click **Show** to reveal it |
 
-> ⚠️ These are **not** the same as the "App ID / App Secret" shown on the app's general
-> Settings → Basic page. Use the ones under **Instagram → API setup with Instagram
-> login**, or login will fail with a confusing error.
+> ⚠️ **These are NOT the "App ID" and "App Secret" on the *Settings → Basic* page.**
+> Those are different numbers and will not work. Make sure you're on the
+> **Instagram → API setup with Instagram login** page.
 
-### The redirect URI
+5. Copy the **Instagram App ID**
+6. Open the file `secrets.properties` in your project folder
+   (it's already made for you, sitting next to `CLAUDE.md`)
+7. Paste it after `META_APP_ID=` so the line reads e.g. `META_APP_ID=990602627938098`
+8. Go back, click **Show** next to **Instagram App Secret**, copy it
+9. Paste it after `META_APP_SECRET=`
+10. **Save the file**
 
-Still in **Business login settings**, find **OAuth redirect URIs** and add:
+### Now the redirect address
 
-```
-https://autoinsta.local/oauth
-```
+Still on that same **Business login settings** panel:
 
-That address doesn't need to exist or resolve anywhere. autoinsta opens Instagram's
-login page inside the app and intercepts the moment Instagram tries to redirect there,
-reading the login code straight out of the URL. Nothing is ever actually loaded from it.
+11. Find the box labelled **OAuth redirect URIs**
+12. Type or paste exactly: `https://localhost/oauth`  ← confirmed accepted
+13. Click **Add** (or press Enter), then **Save changes**
 
-> If Meta rejects that value, try `https://localhost/oauth`. Tell me which one it
-> accepted — it has to match the app's code exactly, including any trailing slash Meta
-> adds for you.
+> **"But that website doesn't exist?"** Correct, and that's fine. It's not a real
+> website — it's just a signpost. When you finish logging in, Instagram tries to send
+> you to that address, and autoinsta grabs the login code out of it before anything
+> actually loads. Nothing is ever downloaded from it.
 
----
+> The dialog may be titled **"Set up Instagram business login"** with a single
+> **Redirect URL** box. That's the right place.
 
-## Part 4 — Add your Instagram account to the app
+> Note: an earlier draft of this guide suggested `https://autoinsta.local/oauth`.
+> Don't use it — `.local` is not a real internet domain and Meta may reject it.
 
-This is what keeps you on Standard Access (no review needed).
-
-1. In the app dashboard, look for where Instagram accounts are added — usually
-   **App roles → Roles**, or an **Instagram Tester** section under the Instagram product
-2. Add your Instagram account
-3. **Then accept the invite from Instagram itself:** Instagram app → **Settings and
-   privacy** → search **Apps and websites** → **Tester invites** → **Accept**
-
-> People miss step 3 constantly and then can't work out why login fails. If anything
-> goes wrong later, check here first.
-
----
-
-## Part 5 — Cloudinary (needed for Phase 5, do it now)
-
-Instagram won't accept a file upload directly — it fetches your media from a public
-URL. Meta's words: *"we cURL media used in publishing attempts, so the media must be
-hosted on a publicly accessible server."* Cloudinary provides that free.
-
-1. Sign up at **https://cloudinary.com/users/register_free**
-2. On the dashboard, copy your **Cloud name** → `CLOUDINARY_CLOUD_NAME`
-3. **Settings** (gear) → **Upload** → **Upload presets** → **Add upload preset**
-   - **Signing Mode: Unsigned** ← the important one; lets the app upload without
-     embedding your Cloudinary API secret in the APK
-   - Name it something memorable → `CLOUDINARY_UPLOAD_PRESET`
-   - **Leave every transformation off.** No resizing, no quality reduction. We want
-     Cloudinary storing your art exactly as you exported it.
-4. Save
+✅ **Done when:** `secrets.properties` has two values filled in, and the redirect
+address is saved in the dashboard.
 
 ---
 
-## Part 6 — Put it all together
+# STEP 4 — Let your Instagram account use the app
+### 💻 computer, then 📱 phone
 
-Create `secrets.properties` in the project root (next to `CLAUDE.md`). It is
-git-ignored, so it never leaves your machine:
+Right now the app exists but your Instagram account isn't allowed to use it. Two halves:
+invite, then accept.
+
+### Part A — send the invite (computer)
+
+1. Still in your app's dashboard, look in the left sidebar for **App roles** → **Roles**
+   - Or, under the Instagram product, look for an **Instagram testers** section
+2. Find **Instagram testers** and click **Add people** / **Add Instagram testers**
+3. Type your **Instagram username** (the @name, without the @)
+4. Click **Submit**
+
+### Part B — accept the invite (phone) — ⚠️ people always forget this one
+
+5. Open **Instagram** on your phone
+6. Tap your **profile picture** → **☰** → **Settings and privacy**
+7. In the search box, type: **apps**
+8. Tap **Apps and websites**
+9. Tap the **Tester invites** tab
+10. You should see your app → tap **Accept**
+
+✅ **Done when:** the invite says accepted. If you skip Part B, login will fail later
+and the error won't explain why.
+
+---
+
+# STEP 5 — Cloudinary (free image hosting)
+### 💻 On your computer
+
+Instagram doesn't let apps upload a file directly. Instead it goes and *fetches* your
+photo from a web address. So your art needs to sit somewhere public for a moment.
+Cloudinary does that for free.
+
+1. Go to **https://cloudinary.com/users/register_free**
+2. Sign up (email or Google)
+3. When you land on the dashboard, find **Cloud name** — a short word or phrase
+4. Copy it → paste after `CLOUDINARY_CLOUD_NAME=` in `secrets.properties`
+5. Click the **⚙️ gear icon** (Settings)
+6. Click **Upload** in the settings menu
+7. Scroll to **Upload presets** → click **Add upload preset**
+8. **Change "Signing Mode" to `Unsigned`** ← this one matters
+   - This lets the app upload without carrying your Cloudinary password inside it
+9. Give it a name, e.g. `autoinsta`
+10. **Don't turn on any resizing or quality options.** We want your art stored exactly
+    as you exported it.
+11. Click **Save**
+12. Copy the preset **name** → paste after `CLOUDINARY_UPLOAD_PRESET=`
+13. **Save the file**
+
+✅ **Done when:** all four values in `secrets.properties` are filled in.
+
+---
+
+# STEP 6 — Tell me you're done
+
+Your `secrets.properties` should now look like this (with your own values):
 
 ```properties
-META_APP_ID=<Instagram App ID from Part 3>
-META_APP_SECRET=<Instagram App Secret from Part 3>
+META_APP_ID=990602627938098
+META_APP_SECRET=a1b2c3d4e5f6a7b8c9d0
 META_GRAPH_VERSION=v21.0
-CLOUDINARY_CLOUD_NAME=<from Part 5>
-CLOUDINARY_UPLOAD_PRESET=<from Part 5>
-OAUTH_REDIRECT_URI=https://autoinsta.local/oauth
+CLOUDINARY_CLOUD_NAME=dxy123abc
+CLOUDINARY_UPLOAD_PRESET=autoinsta
+OAUTH_REDIRECT_URI=https://localhost/oauth
 ```
 
-Then tell me it's done and I'll wire up the connect flow.
+Message me **"setup done"** and I'll build the Connect Instagram button.
+
+That file stays on your computer only — git is set to ignore it, so it never gets
+uploaded to GitHub. I checked.
 
 ---
 
-## Things worth knowing before you rely on this
+# If you get stuck
 
-**Your login expires every 60 days.** Meta issues a token good for 60 days, refreshable
-for another 60 — but *"tokens that have not been refreshed in 60 days will expire and can
-no longer be refreshed."* autoinsta refreshes on launch, so opening the app every couple
-of months is enough. Leave it closed for two months and you'll have to reconnect.
+Tell me **which step number** and **what you see on screen**. Meta redesigns this
+dashboard regularly, so the buttons may be named slightly differently than above —
+that's normal and I can work from a description.
 
-**JPEG only.** Meta: *"JPEG is the only image format supported."* PNG is rejected
-outright. Since digital art is often exported as PNG, autoinsta will convert on the way
-through — which does cost a little quality on those files. JPEG originals pass through
-untouched.
+---
 
-**Posting limit.** Meta's docs say 100 posts per 24 hours in one place and 50 in
-another. autoinsta assumes the lower number. Either is far above normal use.
+# Three things to know before you rely on this
 
-**Carousels:** 2–10 items, and every image is cropped to match the **first** one's
-aspect ratio. Put your best-framed piece first.
+**Your login expires after 60 days of not opening the app.** Meta gives out a pass that
+lasts 60 days. autoinsta renews it every time you open the app, so opening it once every
+couple of months is plenty. Leave it shut for two months straight and you'll have to
+reconnect.
+
+**PNG files lose a little quality; JPEG files don't.** Instagram only accepts JPEG.
+If your art is a PNG, it has to be converted, and converting costs a small amount of
+quality. If you can export as JPEG, do — it passes through untouched.
+
+**Carousels crop to the first image.** In a multi-photo post, every image gets cropped
+to match the shape of the **first** one. Put your best-framed piece first.
 
 ---
 
 ## Sources
-
 - [Instagram Platform overview](https://developers.facebook.com/docs/instagram-platform/overview/)
 - [Business Login for Instagram](https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/business-login/)
 - [Content publishing](https://developers.facebook.com/docs/instagram-platform/content-publishing/)

@@ -24,9 +24,11 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.autoinsta.ui.composepost.ComposePostScreen
 import com.autoinsta.ui.home.HomeScreen
+import com.autoinsta.ui.settings.SettingsScreen
 import com.autoinsta.ui.theme.AutoInstaTheme
 
 private const val ROUTE_HOME = "home"
+private const val ROUTE_SETTINGS = "settings"
 private const val ARG_POST_ID = "postId"
 private const val NO_POST_ID = -1L
 private const val ROUTE_COMPOSE_POST = "composePost?$ARG_POST_ID={$ARG_POST_ID}"
@@ -56,6 +58,7 @@ private fun AppRoot() {
             ) {
                 composable(ROUTE_HOME) {
                     HomeScreen(
+                        onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
                         onCreatePost = {
                             navController.navigate("composePost?$ARG_POST_ID=$NO_POST_ID")
                         },
@@ -79,6 +82,9 @@ private fun AppRoot() {
                         postId = postId,
                         onNavigateBack = { navController.popBackStack() },
                     )
+                }
+                composable(ROUTE_SETTINGS) {
+                    SettingsScreen(onNavigateBack = { navController.popBackStack() })
                 }
             }
         }

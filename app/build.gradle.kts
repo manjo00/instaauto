@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 // Load secrets.properties (git-ignored). Falls back to empty strings so the project
@@ -42,7 +43,7 @@ android {
         buildConfigField("String", "META_GRAPH_VERSION", "\"${secret("META_GRAPH_VERSION", "v21.0")}\"")
         buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"${secret("CLOUDINARY_CLOUD_NAME")}\"")
         buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"${secret("CLOUDINARY_UPLOAD_PRESET")}\"")
-        buildConfigField("String", "OAUTH_REDIRECT_URI", "\"${secret("OAUTH_REDIRECT_URI", "https://autoinsta.local/oauth")}\"")
+        buildConfigField("String", "OAUTH_REDIRECT_URI", "\"${secret("OAUTH_REDIRECT_URI", "https://localhost/oauth")}\"")
     }
 
     buildTypes {
@@ -109,6 +110,16 @@ dependencies {
 
     // WorkManager
     implementation(libs.androidx.work.runtime.ktx)
+
+    // Networking — Instagram API
+    implementation(libs.retrofit)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.retrofit.kotlinx.serialization)
+
+    // Encrypted token storage
+    implementation(libs.androidx.security.crypto)
 
     // Room
     implementation(libs.room.runtime)
