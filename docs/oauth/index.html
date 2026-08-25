@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Returning to autoinsta…</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #101014; color: #f2f2f7; text-align: center; padding: 24px;
+  }
+  .card { max-width: 22rem; }
+  h1 { font-size: 1.25rem; margin: 0 0 .5rem; font-weight: 600; }
+  p { margin: 0 0 1rem; color: #a1a1aa; line-height: 1.5; font-size: .95rem; }
+  a.button {
+    display: inline-block; padding: .7rem 1.4rem; border-radius: 999px;
+    background: #5b6cff; color: #fff; text-decoration: none; font-weight: 600;
+  }
+  .err { color: #ff6b6b; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1 id="title">Returning to autoinsta…</h1>
+  <p id="msg">You can close this tab if it doesn't happen automatically.</p>
+  <a class="button" id="open" href="#">Open autoinsta</a>
+</div>
+
+<script>
+/*
+ * Bounce page for the autoinsta Instagram login.
+ *
+ * Meta only accepts https:// redirect URIs — it rejects custom schemes outright — but
+ * an Android app can only be handed a redirect via an Intent. So Instagram sends the
+ * browser here, and this page immediately forwards to autoinsta://oauth, which the app
+ * registers an intent-filter for.
+ *
+ * Nothing is stored or sent anywhere: the authorization code arrives in this page's
+ * query string and is passed straight through to the app on the same device.
+ */
+(function () {
+  var params = window.location.search || '';
+  // Instagram appends "#_" to the redirect; strip it so it can't corrupt the code.
+  var hash = (window.location.hash || '').replace(/^#_?/, '');
+  if (!params && hash) params = '?' + hash;
+
+  var target = 'autoinsta://oauth' + params;
+  document.getElementById('open').setAttribute('href', target);
+
+  var q = new URLSearchParams(params);
+  if (q.get('error') || q.get('error_description')) {
+    document.getElementById('title').textContent = 'Login was cancelled';
+    document.getElementById('title').className = 'err';
+    document.getElementById('msg').textContent =
+      q.get('error_description') || q.get('error') || 'No details given.';
+  }
+
+  // Go straight to the app. Kept out of the initial paint so the fallback button
+  // still exists if the app isn't installed or the jump is blocked.
+  setTimeout(function () { window.location.replace(target); }, 60);
+})();
+</script>
+</body>
+</html>

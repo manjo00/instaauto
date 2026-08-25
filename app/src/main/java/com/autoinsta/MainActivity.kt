@@ -30,6 +30,13 @@ import com.autoinsta.ui.home.HomeScreen
 import com.autoinsta.ui.settings.SettingsScreen
 import com.autoinsta.ui.theme.AutoInstaTheme
 
+/**
+ * The link the GitHub Pages bounce page forwards to. Must match the intent-filter in
+ * AndroidManifest.xml exactly. This is deliberately *not* the redirect URI registered
+ * with Meta — Meta only accepts https, and Android can only receive an Intent.
+ */
+private const val APP_REDIRECT_URI = "autoinsta://oauth"
+
 private const val ROUTE_HOME = "home"
 private const val ROUTE_SETTINGS = "settings"
 private const val ARG_POST_ID = "postId"
@@ -67,7 +74,10 @@ class MainActivity : ComponentActivity() {
      */
     private fun handleOAuthRedirect(intent: Intent?) {
         val data: Uri = intent?.data ?: return
-        if (!data.toString().startsWith(BuildConfig.OAUTH_REDIRECT_URI)) return
+        // NOT BuildConfig.OAUTH_REDIRECT_URI: that is the https address Meta redirects
+        // to. The browser lands there and the page forwards to this custom scheme, so
+        // this is what actually arrives as an Intent.
+        if (!data.toString().startsWith(APP_REDIRECT_URI)) return
 
         val code = data.getQueryParameter("code")
         val error = data.getQueryParameter("error_description")
