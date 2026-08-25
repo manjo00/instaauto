@@ -43,7 +43,7 @@ android {
         buildConfigField("String", "META_GRAPH_VERSION", "\"${secret("META_GRAPH_VERSION", "v21.0")}\"")
         buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"${secret("CLOUDINARY_CLOUD_NAME")}\"")
         buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"${secret("CLOUDINARY_UPLOAD_PRESET")}\"")
-        buildConfigField("String", "OAUTH_REDIRECT_URI", "\"${secret("OAUTH_REDIRECT_URI", "https://localhost/oauth")}\"")
+        buildConfigField("String", "OAUTH_REDIRECT_URI", "\"${secret("OAUTH_REDIRECT_URI", "autoinsta://oauth")}\"")
     }
 
     buildTypes {
@@ -117,6 +117,9 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.retrofit.kotlinx.serialization)
+
+    // Chrome Custom Tabs for OAuth
+    implementation(libs.androidx.browser)
 
     // Encrypted token storage
     implementation(libs.androidx.security.crypto)

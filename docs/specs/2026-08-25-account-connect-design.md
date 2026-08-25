@@ -16,7 +16,7 @@ Measured against Meta's live docs on 2026-08-25, not from memory:
 | App Review needed? | **No.** Posting to an account you own is Standard Access, the default |
 | Permissions | `instagram_business_basic`, `instagram_business_content_publish` |
 | API host | `graph.instagram.com` (not `graph.facebook.com`) |
-| Redirect URI | `https://localhost/oauth` — confirmed accepted by Meta's dashboard |
+| Redirect URI | `autoinsta://oauth` — custom scheme, needed for Custom Tabs |
 | Token lifetime | short-lived 1h → long-lived **60 days**, refreshable |
 
 ## The four endpoints
@@ -28,26 +28,42 @@ Measured against Meta's live docs on 2026-08-25, not from memory:
 4. https://graph.instagram.com/refresh_access_token → extends a 60-day token
 ```
 
-## Why a WebView, and what that costs
+## Why Chrome Custom Tabs (revised 2026-08-25, after the WebView failed)
 
-Meta's redirect URIs are HTTPS-only in every documented example, and v1 has no server —
-so there is nowhere for an HTTPS callback to land. Instead the app opens Instagram's own
-login page in a WebView and watches every navigation. When Instagram tries to redirect to
-`https://localhost/oauth?code=...`, the app **cancels that navigation** and reads the code
-out of the URL. The page is never loaded, so it does not matter that nothing is hosted there.
+**The original design used a WebView** to intercept the redirect, accepting "Meta may
+block embedded webviews" as an unproven risk. It does block them, and the failure mode is
+worse than an error: the login page loads, its DOM is fully populated with the username
+and password fields, it animates at 60fps — and paints pure white. Nothing in logcat.
 
-Honest about the trade-off: a WebView is less safe than a Custom Tab, because the host app
-can in principle observe what is typed into it. Two things make it acceptable here:
+Diagnosed by enabling `WebView.setWebContentsDebuggingEnabled(true)` and driving the
+DevTools protocol over `adb forward`. Meta server-renders the markup but their Bloks
+runtime refuses to display inside an embedded browser, collapsing `<html>` to
+`height: 0` with `overflow: auto scroll`. Forcing the height back did not help, and it
+was blank under both hardware and software layers. Full write-up in `docs/STATUS.md`.
 
-- The app is used by exactly one person, who owns the account and built the app.
-- The alternative needs a hosted HTTPS page, which contradicts the locked "no server" decision.
+**Custom Tabs instead.** The login runs in real Chrome, so it renders exactly as it does
+for any other site. It is also the safer choice — the login happens in Chrome's process,
+so this app never has the chance to observe the password.
 
-**Unproven risk:** Meta has historically blocked embedded webviews for *Facebook* login.
-Whether Instagram's Business Login does the same is not documented either way. If it is
-blocked, the fallback is a GitHub Pages redirect + Android App Link, which needs no server
-either — just a static file. This is the main thing Phase 4 testing must find out.
+### Catching the return trip
 
-The WebView is cleared of cookies before use and destroyed after, so it holds no session.
+Custom Tabs cannot be intercepted, so the redirect has to come back as an Android Intent.
+The redirect URI is therefore a **custom scheme**, `autoinsta://oauth`, registered both in
+the Meta dashboard and as an intent-filter in the manifest.
+
+`MainActivity` is `launchMode="singleTop"`, so the redirect arrives at the running
+instance via `onNewIntent` rather than stacking a second copy. It pulls out `code` (or
+`error`) and publishes to `OAuthRedirectBus` — a small process-wide holder, needed
+because the Intent arrives with no reference to the ViewModel waiting for it. The result
+is consumed once and cleared, since an authorization code is single-use.
+
+**Verified end to end** by firing the redirect with a fake code over adb: the app caught
+it, extracted the code, and called `api.instagram.com/oauth/access_token`, which returned
+400 as it should for a bogus code. Every link works except the real login page.
+
+**Fallbacks if Meta rejects the custom scheme:** a GitHub Pages redirect plus a verified
+Android App Link (needs `assetlinks.json` hosted, still no server), or keeping
+`https://localhost/oauth` and having the user enable "Open by default" for the app.
 
 ## Components
 
@@ -63,8 +79,10 @@ domain/
   TokenLifecycle.kt       pure: is it expired, should it refresh, how long left
 ui/settings/
   SettingsScreen.kt       shows the connected account, connect/disconnect
-  InstagramLoginScreen.kt the WebView that captures the code
+  CustomTabLauncher.kt    opens Instagram's login in real Chrome
   SettingsViewModel.kt
+data/remote/
+  OAuthRedirectBus.kt     carries the result from MainActivity to the ViewModel
 ```
 
 ### Why the token is not in Room
@@ -89,9 +107,9 @@ Meta's rules, encoded there:
 ## The connect flow
 
 1. Settings → **Connect Instagram**
-2. WebView opens `.../oauth/authorize` with the two scopes
+2. Chrome Custom Tab opens `.../oauth/authorize` with the two scopes
 3. User logs in and approves
-4. Redirect to `https://localhost/oauth?code=...` is intercepted, navigation cancelled
+4. Instagram redirects to `autoinsta://oauth?code=...`; Android routes it to MainActivity
 5. Code → short-lived token (`api.instagram.com`)
 6. Short-lived → long-lived 60-day token (`graph.instagram.com`)
 7. `GET /me?fields=user_id,username,account_type` for the profile

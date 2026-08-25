@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.autoinsta.data.db.entities.AccountEntity
 import com.autoinsta.data.repository.AccountRepository
+import com.autoinsta.data.remote.OAuthRedirectBus
 import com.autoinsta.data.repository.ConnectResult
 import com.autoinsta.domain.TokenLifecycle
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,7 +15,8 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val account: AccountEntity? = null,
     val isConnecting: Boolean = false,
-    val showLogin: Boolean = false,
+    /** True from tapping Connect until the browser hands a result back. */
+    val awaitingBrowser: Boolean = false,
     val errorMessage: String? = null,
     val successMessage: String? = null,
     val daysRemaining: Int = 0,
@@ -33,6 +35,24 @@ class SettingsViewModel(
     val uiState: StateFlow<SettingsUiState> = _uiState
 
     init {
+        // The browser delivers the login result to MainActivity, which posts it here.
+        viewModelScope.launch {
+            OAuthRedirectBus.result.collect { pending ->
+                when (val r = pending ?: return@collect) {
+                    is OAuthRedirectBus.Result.Code -> {
+                        OAuthRedirectBus.clear()
+                        exchangeCode(r.value)
+                    }
+                    is OAuthRedirectBus.Result.Error -> {
+                        OAuthRedirectBus.clear()
+                        _uiState.update {
+                            it.copy(awaitingBrowser = false, isConnecting = false, errorMessage = r.message)
+                        }
+                    }
+                }
+            }
+        }
+
         viewModelScope.launch {
             accountRepository.observe().collect { account ->
                 _uiState.update {
@@ -46,17 +66,30 @@ class SettingsViewModel(
         }
     }
 
-    fun startConnect() {
-        _uiState.update { it.copy(showLogin = true, errorMessage = null, successMessage = null) }
+    /** Called once the browser has actually been opened. */
+    fun onBrowserOpened() {
+        _uiState.update { it.copy(awaitingBrowser = true, errorMessage = null, successMessage = null) }
     }
 
-    fun cancelConnect() {
-        _uiState.update { it.copy(showLogin = false) }
+    fun onBrowserFailed() {
+        _uiState.update {
+            it.copy(awaitingBrowser = false, errorMessage = "Couldn't open a browser to log in.")
+        }
     }
 
-    /** The WebView caught a login code — turn it into a connected account. */
-    fun onCodeReceived(code: String) {
-        _uiState.update { it.copy(showLogin = false, isConnecting = true, errorMessage = null) }
+    /**
+     * The user came back without completing the login (pressed back in the browser).
+     * Called when Settings becomes visible again with nothing pending.
+     */
+    fun onReturnedWithoutResult() {
+        if (_uiState.value.awaitingBrowser && OAuthRedirectBus.result.value == null) {
+            _uiState.update { it.copy(awaitingBrowser = false) }
+        }
+    }
+
+    /** Turn the login code from the browser into a connected account. */
+    private fun exchangeCode(code: String) {
+        _uiState.update { it.copy(awaitingBrowser = false, isConnecting = true, errorMessage = null) }
         viewModelScope.launch {
             when (val result = accountRepository.connectWithCode(code)) {
                 is ConnectResult.Success -> _uiState.update {
@@ -72,10 +105,6 @@ class SettingsViewModel(
                 }
             }
         }
-    }
-
-    fun onLoginError(message: String) {
-        _uiState.update { it.copy(showLogin = false, isConnecting = false, errorMessage = message) }
     }
 
     fun disconnect() {

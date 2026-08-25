@@ -40,14 +40,34 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AutoInsta">
 
+        <!--
+          launchMode="singleTop": when Instagram redirects back after login, Android
+          delivers it to this same Activity instance via onNewIntent instead of stacking
+          a second copy on top of the running app.
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.AutoInsta">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              Catches the return trip from Instagram's login. Must match
+              OAUTH_REDIRECT_URI in secrets.properties exactly, and the same value must
+              be registered in the Meta App Dashboard.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="autoinsta"
+                    android:host="oauth" />
             </intent-filter>
         </activity>
 

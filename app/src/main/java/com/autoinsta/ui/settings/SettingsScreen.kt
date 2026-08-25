@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,11 +44,15 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.autoinsta.AutoInstaApp
+import com.autoinsta.data.remote.InstagramAuthApi
 import com.autoinsta.domain.TokenLifecycle
 
 /**
@@ -74,15 +79,21 @@ fun SettingsScreen(
     val state by viewModel.uiState.collectAsState()
     var confirmDisconnect by remember { mutableStateOf(false) }
 
-    // The login page takes over the whole screen while it's up.
-    if (state.showLogin) {
-        InstagramLoginScreen(
-            onCodeReceived = viewModel::onCodeReceived,
-            onCancelled = viewModel::cancelConnect,
-            onError = viewModel::onLoginError,
-            modifier = modifier,
-        )
-        return
+    // Opens Instagram's login in Chrome. The result comes back through
+    // MainActivity as a new Intent, not through this screen — see OAuthRedirectBus.
+    val startLogin = {
+        val opened = CustomTabLauncher.openLogin(context, InstagramAuthApi.authorizationUrl())
+        if (opened) viewModel.onBrowserOpened() else viewModel.onBrowserFailed()
+    }
+
+    // Coming back from the browser without a result means the login was abandoned.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onReturnedWithoutResult()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Scaffold(
@@ -109,16 +120,17 @@ fun SettingsScreen(
             Text("Instagram account", style = MaterialTheme.typography.titleMedium)
 
             when {
-                state.isConnecting -> ConnectingCard()
+                state.isConnecting -> ConnectingCard("Connecting…")
+                state.awaitingBrowser -> ConnectingCard("Waiting for Instagram…")
                 state.account != null -> ConnectedCard(
                     username = state.account!!.username,
                     profilePictureUrl = state.account!!.profilePictureUrl,
                     daysRemaining = state.daysRemaining,
                     tokenState = state.tokenState,
                     onDisconnectClick = { confirmDisconnect = true },
-                    onReconnectClick = viewModel::startConnect,
+                    onReconnectClick = startLogin,
                 )
-                else -> NotConnectedCard(onConnectClick = viewModel::startConnect)
+                else -> NotConnectedCard(onConnectClick = startLogin)
             }
 
             state.errorMessage?.let { message ->
@@ -179,14 +191,14 @@ private fun NotConnectedCard(onConnectClick: () -> Unit) {
 }
 
 @Composable
-private fun ConnectingCard() {
+private fun ConnectingCard(label: String) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            Text("Connecting…", modifier = Modifier.padding(start = 12.dp))
+            Text(label, modifier = Modifier.padding(start = 12.dp))
         }
     }
 }

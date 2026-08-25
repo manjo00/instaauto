@@ -3,6 +3,8 @@ package com.autoinsta
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,6 +24,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.autoinsta.data.remote.OAuthRedirectBus
 import com.autoinsta.ui.composepost.ComposePostScreen
 import com.autoinsta.ui.home.HomeScreen
 import com.autoinsta.ui.settings.SettingsScreen
@@ -37,8 +40,44 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Covers the cold-start case: the app was not running when the browser
+        // redirected, so the login result arrives in the launch Intent.
+        handleOAuthRedirect(intent)
         setContent {
             AppRoot()
+        }
+    }
+
+    /**
+     * The usual case: the app was already running behind the browser, so Android hands
+     * the redirect here rather than starting a new Activity (see launchMode=singleTop).
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleOAuthRedirect(intent)
+    }
+
+    /**
+     * Pull the login result out of the redirect and hand it to whatever is waiting.
+     *
+     * Instagram sends either `?code=...` on success or `?error=...&error_description=...`
+     * when the user declines. Anything else means we were opened by a link we do not
+     * understand, and is ignored.
+     */
+    private fun handleOAuthRedirect(intent: Intent?) {
+        val data: Uri = intent?.data ?: return
+        if (!data.toString().startsWith(BuildConfig.OAUTH_REDIRECT_URI)) return
+
+        val code = data.getQueryParameter("code")
+        val error = data.getQueryParameter("error_description")
+            ?: data.getQueryParameter("error")
+
+        when {
+            !code.isNullOrBlank() ->
+                OAuthRedirectBus.publish(OAuthRedirectBus.Result.Code(code))
+            !error.isNullOrBlank() ->
+                OAuthRedirectBus.publish(OAuthRedirectBus.Result.Error(error))
         }
     }
 }

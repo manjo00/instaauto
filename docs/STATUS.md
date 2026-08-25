@@ -103,6 +103,37 @@ evidence that a task works — run the actual task.
 
 **Bonus:** build cycle dropped from 5m23s to ~1m20s once output left the non-ASCII path.
 
+### 🔴 Instagram's login will not render in a WebView — use Custom Tabs
+**Symptom:** tapping "Connect Instagram" showed a blank white page. No error, no log
+line, nothing in logcat.
+
+**What the evidence showed**, via WebView remote debugging over adb (CDP):
+- The WebView itself paints fine — a `data:` URL with a red background filled the screen.
+- The page loads: `readyState: complete`, correct URL, title "Instagram".
+- The DOM is fully present: `input[name=username]`, `input[name=password]`, a "Log in"
+  button, all with real on-screen positions.
+- The page runs: **74 animation frames in 1200ms**, `visibilityState: visible`.
+- Yet `<html>` computes to `height: 0px` with `overflow: auto scroll` — a zero-height
+  scroll container, which clips everything inside it.
+- Forcing `height: 100%` had **no effect** (the containing block itself is zero-height).
+  Forcing an explicit `753px` fixed the computed heights but the page still painted white.
+- Blank under both `LAYER_TYPE_HARDWARE` and `LAYER_TYPE_SOFTWARE`.
+
+**Root cause:** Meta server-renders the login markup (hence the DOM) but their
+client-side Bloks runtime (`wbloks_*` classes) declines to display it inside an embedded
+browser. This is deliberate on Meta's part, not a rendering bug — and it presents as a
+blank page rather than an error message, which is what made it expensive to diagnose.
+
+**Rule:** **never host an OAuth login in a WebView.** Use Chrome Custom Tabs, which runs
+the real browser. This was flagged as an unproven risk in the Phase 4 design and accepted
+anyway; the design should have treated "provider blocks embedded webviews" as the default
+assumption rather than something to test later.
+
+**Worth keeping:** `WebView.setWebContentsDebuggingEnabled(true)` plus
+`adb forward tcp:PORT localabstract:webview_devtools_remote_<pid>` makes a WebView fully
+inspectable over the DevTools protocol from the command line. That is the only reason
+this was diagnosable at all.
+
 ### 🟠 Editing `secrets.properties` does not rebuild BuildConfig
 **Symptom:** filled in real credentials, rebuilt, and `BuildConfig.META_APP_ID` was still
 `""`. No error — the app would just fail to log in with a confusing API error.
