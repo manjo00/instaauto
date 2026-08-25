@@ -1,7 +1,15 @@
 package com.autoinsta.data.remote.dto
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Responses from Meta's auth endpoints.
@@ -12,12 +20,35 @@ import kotlinx.serialization.Serializable
  * field somewhere deep in the call stack.
  */
 
+/**
+ * Reads an id whether Meta sends it as a JSON string or a JSON number.
+ *
+ * They are not consistent: the token endpoint returns
+ * `"user_id": 28044336998528158` (a bare number) while the Graph endpoints return
+ * `"id": "17841400000000000"` (quoted). Declaring either one as `String` alone fails the
+ * whole parse with "Expected quotation mark" and loses an otherwise successful login.
+ */
+object FlexibleIdSerializer : KSerializer<String> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("FlexibleId", PrimitiveKind.STRING)
+
+    override fun deserialize(decoder: Decoder): String {
+        val json = decoder as? JsonDecoder ?: return decoder.decodeString()
+        return json.decodeJsonElement().jsonPrimitive.content
+    }
+
+    override fun serialize(encoder: Encoder, value: String) = encoder.encodeString(value)
+}
+
 /** `POST https://api.instagram.com/oauth/access_token` */
 @Serializable
 data class ShortLivedTokenDto(
     @SerialName("access_token") val accessToken: String? = null,
+    @Serializable(with = FlexibleIdSerializer::class)
     @SerialName("user_id") val userId: String? = null,
-    val permissions: List<String>? = null,
+    // `permissions` is deliberately not modelled: Meta returns it as a list in some
+    // responses and a comma-separated string in others, and nothing here uses it.
+    // ignoreUnknownKeys drops it safely.
 )
 
 /**
@@ -37,7 +68,9 @@ data class LongLivedTokenDto(
 @Serializable
 data class InstagramProfileDto(
     /** Business Login returns `user_id`; some responses use `id`. Accept either. */
+    @Serializable(with = FlexibleIdSerializer::class)
     @SerialName("user_id") val userId: String? = null,
+    @Serializable(with = FlexibleIdSerializer::class)
     val id: String? = null,
     val username: String? = null,
     @SerialName("account_type") val accountType: String? = null,

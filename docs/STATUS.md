@@ -134,6 +134,25 @@ assumption rather than something to test later.
 inspectable over the DevTools protocol from the command line. That is the only reason
 this was diagnosable at all.
 
+### 🟠 Meta sends ids as JSON numbers, not strings
+**Symptom:** a successful, user-approved login was thrown away with
+`Unexpected JSON token at offset 245: Expected quotation mark '"', but had '2' instead at
+path: $.user_id`.
+
+**Root cause:** `user_id` was modelled as `String`. The token endpoint actually returns
+`"user_id": 28044336998528158` — a bare number — while Graph endpoints return
+`"id": "1784…"` quoted. kotlinx.serialization fails the **entire** parse on a type
+mismatch, so one wrong field discarded a completed login.
+
+**Fix:** `FlexibleIdSerializer` reads either form via `jsonPrimitive.content`. Covered by
+`AuthDtosTest`, which also pins the `permissions` field (a list in some responses, a
+comma-separated string in others — deliberately not modelled so `ignoreUnknownKeys`
+drops it).
+
+**Rule:** nullable DTOs are not enough on their own — the *type* has to tolerate what the
+provider actually sends. For any external API, assume ids may arrive as either strings or
+numbers and parse permissively.
+
 ### 🟠 Editing `secrets.properties` does not rebuild BuildConfig
 **Symptom:** filled in real credentials, rebuilt, and `BuildConfig.META_APP_ID` was still
 `""`. No error — the app would just fail to log in with a confusing API error.
