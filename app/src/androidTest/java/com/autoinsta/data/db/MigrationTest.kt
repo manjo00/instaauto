@@ -68,6 +68,79 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migrate2To3_keepsMediaAndDefaultsTheFittingColumns() {
+        val scheduledAt = 1_700_000_000_000L
+
+        helper.createDatabase(TEST_DB, 2).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO scheduled_posts
+                    (postType, status, caption, hashtags, presetId, scheduledAt, createdAt,
+                     workRequestId, missedPolicy)
+                VALUES
+                    ('CAROUSEL', 'SCHEDULED', 'my art', '#art', NULL, $scheduledAt,
+                     $scheduledAt, NULL, 'POST_ANYWAY')
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO media_items (postId, mediaType, localUri, cloudinaryUrl, orderIndex)
+                VALUES (1, 'IMAGE', '/data/media/one.jpg', NULL, 0),
+                       (1, 'IMAGE', '/data/media/two.jpg', NULL, 1)
+                """.trimIndent()
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 3, true, MIGRATION_2_3)
+
+        db.query(
+            "SELECT localUri, orderIndex, widthPx, heightPx, fitMode, cropOffset " +
+                "FROM media_items ORDER BY orderIndex"
+        ).use { c ->
+            assertEquals("both media rows must survive", 2, c.count)
+            c.moveToFirst()
+            assertEquals("/data/media/one.jpg", c.getString(0))
+            assertEquals(0, c.getInt(1))
+            // 0x0 means "not measured" — MediaFit reads that as Unknown and falls back to
+            // a plain width cap rather than guessing at a shape it cannot see.
+            assertEquals(0, c.getInt(2))
+            assertEquals(0, c.getInt(3))
+            // PAD at centre is exactly what Phase 5a did for everything, so nothing
+            // already scheduled changes behaviour on upgrade.
+            assertEquals("PAD", c.getString(4))
+            assertEquals(0.5f, c.getFloat(5), 0.0001f)
+        }
+
+        db.query("SELECT missedPolicy FROM scheduled_posts").use { c ->
+            c.moveToFirst()
+            assertEquals("the v2 column must be untouched", "POST_ANYWAY", c.getString(0))
+        }
+    }
+
+    @Test
+    fun migrate1To3_worksAsAChain() {
+        // Someone upgrading from the very first release skips no steps.
+        helper.createDatabase(TEST_DB, 1).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO scheduled_posts
+                    (postType, status, caption, hashtags, presetId, scheduledAt, createdAt, workRequestId)
+                VALUES ('SINGLE_IMAGE', 'SCHEDULED', 'old post', '#old', NULL, 1, 1, NULL)
+                """.trimIndent()
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 3, true, MIGRATION_1_2, MIGRATION_2_3)
+
+        db.query("SELECT caption, missedPolicy FROM scheduled_posts").use { c ->
+            assertEquals(1, c.count)
+            c.moveToFirst()
+            assertEquals("old post", c.getString(0))
+            assertEquals("POST_IF_RECENT", c.getString(1))
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test.db"
     }

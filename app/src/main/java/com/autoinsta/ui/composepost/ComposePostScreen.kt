@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -74,6 +75,7 @@ import com.autoinsta.ui.components.ExactAlarmBanner
 import com.autoinsta.ui.components.openExactAlarmSettings
 import com.autoinsta.AutoInstaApp
 import com.autoinsta.data.db.entities.HashtagPresetEntity
+import com.autoinsta.domain.MediaFit
 import com.autoinsta.domain.PostValidator
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.MissedPostPolicy
@@ -136,6 +138,25 @@ fun ComposePostScreen(
         }
     }
 
+    // The fitting editor takes the whole screen while it is open.
+    state.editingFitAt?.let { index ->
+        state.media.getOrNull(index)?.let { item ->
+            MediaFitEditor(
+                media = item,
+                sharedRatioNote = if (state.postType == PostType.CAROUSEL && state.media.size > 1) {
+                    "In a carousel Instagram crops every picture to match the first one, " +
+                        "so they all end up the same shape as item 1."
+                } else {
+                    null
+                },
+                onSave = viewModel::applyFit,
+                onCancel = viewModel::closeFitEditor,
+                modifier = modifier,
+            )
+            return
+        }
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -186,6 +207,7 @@ fun ComposePostScreen(
                     }
                 },
                 onRemove = viewModel::removeMedia,
+                onEditFit = viewModel::openFitEditor,
             )
 
             OutlinedTextField(
@@ -281,6 +303,7 @@ private fun MediaPicker(
     postType: PostType,
     onAddClick: () -> Unit,
     onRemove: (Int) -> Unit,
+    onEditFit: (Int) -> Unit,
 ) {
     val helper = when (postType) {
         PostType.CAROUSEL -> "Pick 2–10 photos or videos, in order."
@@ -290,7 +313,7 @@ private fun MediaPicker(
     Column {
         Text("Media", style = MaterialTheme.typography.labelLarge)
         Text(
-            text = helper,
+            text = if (media.isEmpty()) helper else "$helper Tap one to fit or crop it.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
@@ -300,6 +323,7 @@ private fun MediaPicker(
                 MediaThumbnail(
                     media = media[index],
                     onRemove = { onRemove(index) },
+                    onClick = { onEditFit(index) },
                 )
             }
             val canAddMore = when (postType) {
@@ -316,9 +340,15 @@ private fun MediaPicker(
 }
 
 @Composable
-private fun MediaThumbnail(media: PickedMedia, onRemove: () -> Unit) {
+private fun MediaThumbnail(
+    media: PickedMedia,
+    onRemove: () -> Unit,
+    onClick: () -> Unit,
+) {
     Box(
-        modifier = Modifier.size(110.dp)
+        modifier = Modifier
+            .size(110.dp)
+            .clickable(onClick = onClick)
     ) {
         Surface(
             shape = RoundedCornerShape(12.dp),
@@ -354,6 +384,41 @@ private fun MediaThumbnail(media: PickedMedia, onRemove: () -> Unit) {
                     contentDescription = "Remove",
                     modifier = Modifier.padding(4.dp),
                 )
+            }
+        }
+
+        // A shape Instagram will not accept is flagged here rather than at publish time,
+        // when it would be too late to do anything about it.
+        if (media.needsFitting) {
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Crop,
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                    Text(
+                        text = when (media.fitMode) {
+                            MediaFit.Mode.CROP -> "Cropped"
+                            MediaFit.Mode.PAD -> "Bars"
+                            MediaFit.Mode.AS_IS -> "Won't post"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(start = 3.dp),
+                    )
+                }
             }
         }
     }
@@ -560,7 +625,32 @@ private fun <VM : ViewModel> viewModelFactoryOf(factory: () -> VM): ViewModelPro
 private fun Uri.toPickedMedia(context: android.content.Context): PickedMedia {
     val mime = context.contentResolver.getType(this)
     val type = if (mime?.startsWith("video/") == true) MediaType.VIDEO else MediaType.IMAGE
-    return PickedMedia(uri = toString(), mediaType = type)
+    val (w, h) = measureImage(context, this, type)
+    return PickedMedia(uri = toString(), mediaType = type, widthPx = w, heightPx = h)
+}
+
+/**
+ * Read an image's dimensions straight from the picker URI, before anything is copied.
+ *
+ * `inJustDecodeBounds` reads only the header, so even a huge export costs nothing. Doing
+ * it here means the compose screen can flag a shape Instagram will reject while the owner
+ * is still looking at the post, rather than at publish time.
+ */
+private fun measureImage(
+    context: android.content.Context,
+    uri: Uri,
+    type: MediaType,
+): Pair<Int, Int> {
+    if (type == MediaType.VIDEO) return 0 to 0
+    return runCatching {
+        context.contentResolver.openInputStream(uri).use { stream ->
+            val options = android.graphics.BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            android.graphics.BitmapFactory.decodeStream(stream, null, options)
+            options.outWidth.coerceAtLeast(0) to options.outHeight.coerceAtLeast(0)
+        }
+    }.getOrDefault(0 to 0)
 }
 
 /**

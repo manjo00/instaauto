@@ -128,10 +128,13 @@ class MediaFitTest {
     }
 
     @Test
-    fun `cropping a tall image fills the frame`() {
+    fun `cropping a tall image uses an explicit window, not automatic gravity`() {
+        // This replaced an earlier assertion expecting c_fill,g_auto. Letting Cloudinary
+        // guess the subject is wrong here: the owner positions the frame themselves, and
+        // g_auto would silently override that choice.
         val t = MediaFit.transformationFor(1080, 1920, Mode.CROP)
-        assertTrue(t.contains("c_fill"))
-        assertTrue("should pick the subject, not blindly centre", t.contains("g_auto"))
+        assertTrue("crops to an exact rectangle", t.contains("c_crop"))
+        assertFalse("must not let Cloudinary pick for them", t.contains("g_auto"))
         assertFalse(t.contains("c_pad"))
     }
 
@@ -186,5 +189,106 @@ class MediaFitTest {
             MediaFit.explain(Verdict.TooWide(2.5), Mode.CROP).orEmpty()
                 .contains("sides", ignoreCase = true)
         )
+    }
+
+    // ── Which part of the image survives a crop ────────────────────────────
+
+    @Test
+    fun `cropping a tall image keeps full width and slides vertically`() {
+        // 1080x1920 at 4:5 keeps 1080x1350.
+        val centre = MediaFit.cropWindow(1080, 1920, offset = 0.5f)
+        assertEquals(1080, centre.width)
+        assertEquals(1350, centre.height)
+        assertEquals(0, centre.x)
+        assertEquals("centred: (1920-1350)/2 = 285", 285, centre.y)
+    }
+
+    @Test
+    fun `offset zero keeps the top of a tall image`() {
+        assertEquals(0, MediaFit.cropWindow(1080, 1920, offset = 0f).y)
+    }
+
+    @Test
+    fun `offset one keeps the bottom of a tall image`() {
+        val w = MediaFit.cropWindow(1080, 1920, offset = 1f)
+        assertEquals(1920 - 1350, w.y)
+        assertEquals("the window must not run past the image", 1920, w.y + w.height)
+    }
+
+    @Test
+    fun `cropping a wide image keeps full height and slides horizontally`() {
+        // 3000x1000 at 1.91 keeps 1910x1000.
+        val centre = MediaFit.cropWindow(3000, 1000, offset = 0.5f)
+        assertEquals(1910, centre.width)
+        assertEquals(1000, centre.height)
+        assertEquals(0, centre.y)
+        assertEquals((3000 - 1910) / 2, centre.x)
+    }
+
+    @Test
+    fun `an offset outside 0 to 1 is clamped rather than running off the image`() {
+        val low = MediaFit.cropWindow(1080, 1920, offset = -5f)
+        val high = MediaFit.cropWindow(1080, 1920, offset = 99f)
+        assertEquals(0, low.y)
+        assertEquals(1920 - 1350, high.y)
+    }
+
+    @Test
+    fun `an acceptable image has the whole image as its window`() {
+        val w = MediaFit.cropWindow(1080, 1080, offset = 0.3f)
+        assertEquals(0, w.x)
+        assertEquals(0, w.y)
+        assertEquals(1080, w.width)
+        assertEquals(1080, w.height)
+    }
+
+    @Test
+    fun `a crop never scales up - the window always fits inside the image`() {
+        listOf(1080 to 1920, 3000 to 1000, 500 to 2000, 4000 to 900).forEach { (w, h) ->
+            listOf(0f, 0.5f, 1f).forEach { offset ->
+                val win = MediaFit.cropWindow(w, h, offset)
+                assertTrue("${w}x$h @$offset: width overruns", win.x + win.width <= w)
+                assertTrue("${w}x$h @$offset: height overruns", win.y + win.height <= h)
+                assertTrue("${w}x$h @$offset: negative origin", win.x >= 0 && win.y >= 0)
+            }
+        }
+    }
+
+    // ── The crop transformation ────────────────────────────────────────────
+
+    @Test
+    fun `crop transformation carries the owner's offset, not a re-centred one`() {
+        val top = MediaFit.transformationFor(1080, 1920, Mode.CROP, cropOffset = 0f)
+        val bottom = MediaFit.transformationFor(1080, 1920, Mode.CROP, cropOffset = 1f)
+
+        assertTrue("top crop should start at y_0", top.contains("y_0"))
+        assertTrue("bottom crop should start lower down", bottom.contains("y_570"))
+        assertFalse("a re-centred crop would discard the choice", top == bottom)
+    }
+
+    @Test
+    fun `crop transformation caps the width in a second step`() {
+        val t = MediaFit.transformationFor(1080, 1920, Mode.CROP, cropOffset = 0.5f)
+        assertTrue("two chained transformations", t.contains("/"))
+        assertTrue(t.endsWith("c_limit,w_1440"))
+    }
+
+    // ── How much gets lost ─────────────────────────────────────────────────
+
+    @Test
+    fun `a 9 by 16 crop loses about 30 percent of the piece`() {
+        // 1350/1920 kept = ~70%.
+        val lost = MediaFit.croppedAwayFraction(1080, 1920)
+        assertTrue("expected ~0.30, was $lost", lost > 0.28f && lost < 0.32f)
+    }
+
+    @Test
+    fun `an acceptable image loses nothing`() {
+        assertEquals(0f, MediaFit.croppedAwayFraction(1080, 1080), 0.001f)
+    }
+
+    @Test
+    fun `unmeasured dimensions report no loss rather than dividing by zero`() {
+        assertEquals(0f, MediaFit.croppedAwayFraction(0, 0), 0.001f)
     }
 }

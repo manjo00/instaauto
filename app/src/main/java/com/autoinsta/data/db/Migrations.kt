@@ -30,5 +30,22 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+/**
+ * v2 → v3: media items remember their pixel size and how the owner wants them fitted.
+ *
+ * Existing rows get `widthPx`/`heightPx` of 0, meaning "not measured" — the fitting code
+ * treats that as Unknown and falls back to a plain width cap rather than guessing. They
+ * also get PAD at centre, which is exactly what Phase 5a did for everything anyway, so
+ * nothing already scheduled changes behaviour.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE media_items ADD COLUMN widthPx INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE media_items ADD COLUMN heightPx INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE media_items ADD COLUMN fitMode TEXT NOT NULL DEFAULT 'PAD'")
+        db.execSQL("ALTER TABLE media_items ADD COLUMN cropOffset REAL NOT NULL DEFAULT 0.5")
+    }
+}
+
 /** Every migration, in order. Passed to the Room builder. */
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2)
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)

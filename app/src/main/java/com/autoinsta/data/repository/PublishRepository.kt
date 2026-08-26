@@ -228,10 +228,14 @@ open class PublishRepository(
         return PublishResult.Success(mediaId)
     }
 
-    /** Upload, then build the address with the fitting applied. */
+    /** Upload, then build the address with the owner's fitting applied. */
     private suspend fun uploadAndBuildUrl(item: FileRef): String {
         val uploaded = uploader.upload(File(item.path), item.mediaType)
-        return uploader.deliveryUrl(uploaded, item.fitMode)
+        return uploader.deliveryUrl(
+            uploaded = uploaded,
+            mode = item.fitMode,
+            cropOffset = item.cropOffset,
+        )
     }
 
     /**
@@ -274,13 +278,17 @@ open class PublishRepository(
         val path: String,
         val mediaType: MediaType,
         val fitMode: MediaFit.Mode,
+        val cropOffset: Float,
+        val widthPx: Int,
+        val heightPx: Int,
     )
 
     private fun com.autoinsta.data.db.entities.MediaItemEntity.toFileRef() = FileRef(
         path = localUri,
         mediaType = mediaType,
-        // Phase 5a always pads: nothing is cropped without the owner saying so, and
-        // nothing fails for shape. Phase 5b makes this a per-item choice.
-        fitMode = MediaFit.Mode.PAD,
+        fitMode = fitMode,
+        cropOffset = cropOffset,
+        widthPx = widthPx,
+        heightPx = heightPx,
     )
 }

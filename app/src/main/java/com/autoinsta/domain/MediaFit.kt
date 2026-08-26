@@ -88,6 +88,7 @@ object MediaFit {
         heightPx: Int,
         mode: Mode,
         padColour: String = DEFAULT_PAD_COLOUR,
+        cropOffset: Float = 0.5f,
     ): String {
         val base = "f_jpg,q_auto:good"
         val verdict = verdictFor(widthPx, heightPx)
@@ -99,20 +100,70 @@ object MediaFit {
         }
 
         val ratio = nearestAllowedRatio(widthPx, heightPx)
-        val targetWidth = MAX_WIDTH_PX
-        val targetHeight = (targetWidth / ratio).toInt()
 
         return when (mode) {
-            Mode.PAD ->
+            Mode.PAD -> {
+                val targetWidth = MAX_WIDTH_PX
+                val targetHeight = (targetWidth / ratio).toInt()
                 // c_pad keeps the whole image and fills the remainder.
                 "$base,c_pad,w_$targetWidth,h_$targetHeight,b_$padColour"
-            Mode.CROP ->
-                // c_fill crops to fill; g_auto lets Cloudinary pick the subject rather
-                // than blindly taking the centre.
-                "$base,c_fill,g_auto,w_$targetWidth,h_$targetHeight"
-            Mode.AS_IS ->
-                "$base,c_limit,w_$MAX_WIDTH_PX"
+            }
+
+            Mode.CROP -> {
+                // Crop in the original's own pixels first, positioned by the owner, then
+                // cap the width. Two steps chained with "/" — cropping in target-space
+                // instead would silently re-centre and throw away their choice.
+                val window = cropWindow(widthPx, heightPx, cropOffset)
+                "$base,c_crop,w_${window.width},h_${window.height},x_${window.x},y_${window.y}" +
+                    "/c_limit,w_$MAX_WIDTH_PX"
+            }
+
+            Mode.AS_IS -> "$base,c_limit,w_$MAX_WIDTH_PX"
         }
+    }
+
+    /** The rectangle kept by a crop, in the original image's pixels. */
+    data class CropWindow(val x: Int, val y: Int, val width: Int, val height: Int)
+
+    /**
+     * Which rectangle survives, given where the owner positioned the frame.
+     *
+     * @param offset 0 = top (or left edge), 0.5 = centre, 1 = bottom (or right edge).
+     *
+     * The window is always the largest rectangle of an allowed ratio that fits inside the
+     * image, so cropping never scales anything up or invents pixels — it only chooses
+     * which part to keep.
+     */
+    fun cropWindow(widthPx: Int, heightPx: Int, offset: Float): CropWindow {
+        val safeOffset = offset.coerceIn(0f, 1f)
+        return when (verdictFor(widthPx, heightPx)) {
+            is Verdict.TooTall -> {
+                // Full width, shortened. The owner slides it up and down.
+                val height = (widthPx / MIN_ASPECT_RATIO).toInt().coerceAtMost(heightPx)
+                val y = ((heightPx - height) * safeOffset).toInt().coerceAtLeast(0)
+                CropWindow(x = 0, y = y, width = widthPx, height = height)
+            }
+            is Verdict.TooWide -> {
+                // Full height, narrowed. The owner slides it left and right.
+                val width = (heightPx * MAX_ASPECT_RATIO).toInt().coerceAtMost(widthPx)
+                val x = ((widthPx - width) * safeOffset).toInt().coerceAtLeast(0)
+                CropWindow(x = x, y = 0, width = width, height = heightPx)
+            }
+            // Nothing to crop: the whole image is the window.
+            else -> CropWindow(x = 0, y = 0, width = widthPx, height = heightPx)
+        }
+    }
+
+    /**
+     * How much of the image a crop would discard, 0 to 1. Drives the editor's warning —
+     * losing 44% of a piece is worth saying out loud.
+     */
+    fun croppedAwayFraction(widthPx: Int, heightPx: Int): Float {
+        if (widthPx <= 0 || heightPx <= 0) return 0f
+        val window = cropWindow(widthPx, heightPx, 0.5f)
+        val kept = window.width.toLong() * window.height.toLong()
+        val total = widthPx.toLong() * heightPx.toLong()
+        return (1.0 - kept.toDouble() / total.toDouble()).toFloat().coerceIn(0f, 1f)
     }
 
     /**

@@ -118,6 +118,7 @@ class CloudinaryUploader(
     fun deliveryUrl(
         uploaded: Uploaded,
         mode: MediaFit.Mode,
+        cropOffset: Float = 0.5f,
         padColour: String = MediaFit.DEFAULT_PAD_COLOUR,
     ): String {
         if (uploaded.resourceType == "video") {
@@ -131,6 +132,7 @@ class CloudinaryUploader(
             heightPx = uploaded.heightPx,
             mode = mode,
             padColour = padColour,
+            cropOffset = cropOffset,
         )
         return "https://res.cloudinary.com/$cloudName/image/upload/$transformation/${uploaded.publicId}.jpg"
     }

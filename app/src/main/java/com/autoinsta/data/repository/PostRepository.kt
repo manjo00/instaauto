@@ -8,6 +8,7 @@ import com.autoinsta.data.db.entities.ScheduledPostEntity
 import com.autoinsta.data.db.relations.ScheduledPostWithMedia
 import com.autoinsta.data.media.MediaFileStore
 import com.autoinsta.scheduler.PostScheduler
+import com.autoinsta.domain.MediaFit
 import com.autoinsta.domain.model.MediaType
 import kotlinx.coroutines.flow.Flow
 import com.autoinsta.domain.model.PostStatus
@@ -25,6 +26,13 @@ data class MediaToSave(
     val mediaType: MediaType,
     val alreadyImported: Boolean,
     val existingCloudinaryUrl: String? = null,
+    /** How to bring this item inside Instagram's accepted shape. */
+    val fitMode: MediaFit.Mode = MediaFit.Mode.PAD,
+    /** Where the crop frame sits: 0 = top/left, 0.5 = centre, 1 = bottom/right. */
+    val cropOffset: Float = 0.5f,
+    /** Known size, if the caller already measured it. Zero means "measure on import". */
+    val widthPx: Int = 0,
+    val heightPx: Int = 0,
 )
 
 /**
@@ -152,6 +160,15 @@ class PostRepository(
             if (item.alreadyImported) item.sourceUri
             else mediaFileStore.import(Uri.parse(item.sourceUri))
 
+        // Measure once, here, and keep it. The compose screen needs to know whether
+        // Instagram will accept the shape while the owner is still looking at the post,
+        // and re-reading the header on every recomposition would be wasteful.
+        val size = if (item.widthPx > 0 && item.heightPx > 0) {
+            MediaFileStore.Dimensions(item.widthPx, item.heightPx)
+        } else {
+            mediaFileStore.measure(storedPath, item.mediaType)
+        }
+
         MediaItemEntity(
             id = 0,
             postId = postId,
@@ -159,6 +176,10 @@ class PostRepository(
             localUri = storedPath,
             cloudinaryUrl = item.existingCloudinaryUrl,
             orderIndex = index,
+            widthPx = size.widthPx,
+            heightPx = size.heightPx,
+            fitMode = item.fitMode,
+            cropOffset = item.cropOffset,
         )
     }
 }

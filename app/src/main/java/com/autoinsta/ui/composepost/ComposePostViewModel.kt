@@ -8,6 +8,7 @@ import com.autoinsta.data.repository.MediaToSave
 import com.autoinsta.data.repository.PostRepository
 import com.autoinsta.data.repository.PresetRepository
 import com.autoinsta.domain.PostValidation
+import com.autoinsta.domain.MediaFit
 import com.autoinsta.domain.PostValidator
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.MissedPostPolicy
@@ -32,7 +33,21 @@ data class PickedMedia(
     val mediaType: MediaType,
     val isImported: Boolean = false,
     val existingCloudinaryUrl: String? = null,
-)
+    /** Measured pixel size. Zero until measured (or for a video we cannot read). */
+    val widthPx: Int = 0,
+    val heightPx: Int = 0,
+    /** How this item is brought inside Instagram's accepted shape. */
+    val fitMode: MediaFit.Mode = MediaFit.Mode.PAD,
+    /** Where the crop frame sits: 0 = top/left, 0.5 = centre, 1 = bottom/right. */
+    val cropOffset: Float = 0.5f,
+) {
+    /** What Instagram makes of this shape. */
+    val verdict: MediaFit.Verdict get() = MediaFit.verdictFor(widthPx, heightPx)
+
+    /** True when this item would be rejected as-is and needs fitting. */
+    val needsFitting: Boolean
+        get() = verdict is MediaFit.Verdict.TooTall || verdict is MediaFit.Verdict.TooWide
+}
 
 data class ComposePostUiState(
     val isEditing: Boolean = false,
@@ -48,6 +63,8 @@ data class ComposePostUiState(
     val missedPolicy: MissedPostPolicy = MissedPostPolicy.POST_IF_RECENT,
     /** False when Android will not honour to-the-minute alarms; the UI warns. */
     val canScheduleExact: Boolean = true,
+    /** Index of the item open in the fitting editor, or null when it is closed. */
+    val editingFitAt: Int? = null,
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
     val saveComplete: Boolean = false,
@@ -106,6 +123,10 @@ class ComposePostViewModel(
                                 mediaType = m.mediaType,
                                 isImported = true,
                                 existingCloudinaryUrl = m.cloudinaryUrl,
+                                widthPx = m.widthPx,
+                                heightPx = m.heightPx,
+                                fitMode = m.fitMode,
+                                cropOffset = m.cropOffset,
                             )
                         },
                     caption = existing.post.caption,
@@ -171,6 +192,27 @@ class ComposePostViewModel(
         _uiState.update { it.copy(scheduledAtMillis = millis, errorMessage = null) }
     }
 
+    fun openFitEditor(index: Int) {
+        _uiState.update { it.copy(editingFitAt = index) }
+    }
+
+    fun closeFitEditor() {
+        _uiState.update { it.copy(editingFitAt = null) }
+    }
+
+    /** Save the owner's choice for the item currently open in the editor. */
+    fun applyFit(mode: MediaFit.Mode, cropOffset: Float) {
+        _uiState.update { state ->
+            val index = state.editingFitAt ?: return@update state.copy(editingFitAt = null)
+            val updated = state.media.toMutableList().also { list ->
+                list.getOrNull(index)?.let { item ->
+                    list[index] = item.copy(fitMode = mode, cropOffset = cropOffset)
+                }
+            }
+            state.copy(media = updated, editingFitAt = null, errorMessage = null)
+        }
+    }
+
     fun setMissedPolicy(policy: MissedPostPolicy) {
         _uiState.update { it.copy(missedPolicy = policy) }
     }
@@ -218,6 +260,10 @@ class ComposePostViewModel(
                     mediaType = picked.mediaType,
                     alreadyImported = picked.isImported,
                     existingCloudinaryUrl = picked.existingCloudinaryUrl,
+                    fitMode = picked.fitMode,
+                    cropOffset = picked.cropOffset,
+                    widthPx = picked.widthPx,
+                    heightPx = picked.heightPx,
                 )
             }
 

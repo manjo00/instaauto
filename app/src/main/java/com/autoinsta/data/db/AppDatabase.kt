@@ -24,7 +24,7 @@ import com.autoinsta.data.db.entities.ScheduledPostEntity
         PostHistoryEntity::class,
         AccountEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

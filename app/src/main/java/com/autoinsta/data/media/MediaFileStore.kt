@@ -1,7 +1,10 @@
 package com.autoinsta.data.media
 
 import android.content.Context
+import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.net.Uri
+import com.autoinsta.domain.model.MediaType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -53,6 +56,42 @@ class MediaFileStore(
         } ?: throw IOException("Could not open media source: $sourceUri")
 
         destination.absolutePath
+    }
+
+    /** Pixel dimensions of a stored file, or 0x0 if they cannot be read. */
+    data class Dimensions(val widthPx: Int, val heightPx: Int)
+
+    /**
+     * Measure an imported file without loading it into memory.
+     *
+     * `inJustDecodeBounds` reads only the header, so a 40-megapixel export costs nothing
+     * to measure. This has to happen locally and before upload: the compose screen needs
+     * to know whether Instagram will accept the shape *while the owner is still looking
+     * at it*, and Cloudinary only reports dimensions after the file is already sent.
+     */
+    suspend fun measure(path: String, mediaType: MediaType): Dimensions =
+        withContext(Dispatchers.IO) {
+            if (mediaType == MediaType.VIDEO) return@withContext measureVideo(path)
+
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            runCatching { BitmapFactory.decodeFile(path, options) }
+            Dimensions(options.outWidth.coerceAtLeast(0), options.outHeight.coerceAtLeast(0))
+        }
+
+    private fun measureVideo(path: String): Dimensions {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(path)
+            val w = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+            val h = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+            Dimensions(w?.toIntOrNull() ?: 0, h?.toIntOrNull() ?: 0)
+        } catch (e: Exception) {
+            // A video we cannot measure is not a failure — Instagram's video rules are
+            // about codec and duration, and MediaFit treats 0x0 as Unknown.
+            Dimensions(0, 0)
+        } finally {
+            runCatching { retriever.release() }
+        }
     }
 
     /** True if [path] points at a file we imported and it is still readable. */
