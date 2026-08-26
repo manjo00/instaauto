@@ -39,17 +39,32 @@ object NetworkModule {
         }
         .build()
 
+    /** Shared so connection pooling and timeouts apply to uploads too. */
+    val sharedClient: OkHttpClient by lazy { okHttpClient() }
+
     private val retrofit: Retrofit by lazy {
         Retrofit.Builder()
             // Every call supplies its own @Url — Meta's auth spans two hosts — but
             // Retrofit still insists on a base URL being set.
             .baseUrl("https://graph.instagram.com/")
-            .client(okHttpClient())
+            .client(sharedClient)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
     }
 
     val instagramAuthApi: InstagramAuthApi by lazy {
         retrofit.create(InstagramAuthApi::class.java)
+    }
+
+    /**
+     * Publishing endpoints. Shares the base URL with auth — both live on
+     * graph.instagram.com — but these use relative paths rather than @Url.
+     */
+    val instagramApi: InstagramApi by lazy {
+        retrofit.create(InstagramApi::class.java)
+    }
+
+    val cloudinaryUploader: CloudinaryUploader by lazy {
+        CloudinaryUploader(client = sharedClient)
     }
 }

@@ -9,6 +9,7 @@ import com.autoinsta.data.repository.AccountRepository
 import com.autoinsta.data.repository.HistoryRepository
 import com.autoinsta.data.repository.PostRepository
 import com.autoinsta.data.repository.PresetRepository
+import com.autoinsta.data.repository.PublishRepository
 import com.autoinsta.scheduler.Notifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +59,15 @@ class AutoInstaApp : Application() {
             accountDao = database.accountDao(),
             tokenStore = tokenStore,
             authApi = NetworkModule.instagramAuthApi,
+        )
+    }
+
+    /** Puts a scheduled post on Instagram. Used by PostWorker when a post comes due. */
+    val publishRepository: PublishRepository by lazy {
+        PublishRepository(
+            uploader = NetworkModule.cloudinaryUploader,
+            api = NetworkModule.instagramApi,
+            accountRepository = accountRepository,
         )
     }
 

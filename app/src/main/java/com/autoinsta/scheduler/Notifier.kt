@@ -37,11 +37,11 @@ class Notifier(
         context.getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
     }
 
-    fun notifyWouldHavePosted(postId: Long, caption: String, mediaCount: Int) {
+    fun notifyPosted(postId: Long, caption: String, mediaCount: Int) {
         val what = if (mediaCount == 1) "1 file" else "$mediaCount files"
         show(
             id = postId,
-            title = "Would have posted now",
+            title = "Posted to Instagram",
             body = buildString {
                 append(what)
                 if (caption.isNotBlank()) append(" · ").append(caption.take(60))

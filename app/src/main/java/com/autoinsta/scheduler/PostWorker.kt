@@ -9,6 +9,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.autoinsta.AutoInstaApp
 import com.autoinsta.data.db.entities.PostHistoryEntity
+import com.autoinsta.data.repository.PublishResult
 import com.autoinsta.domain.ScheduleCalculator
 import com.autoinsta.domain.model.PostStatus
 import java.io.File
@@ -16,9 +17,12 @@ import java.io.File
 /**
  * Does the actual publishing when a post comes due.
  *
- * **This phase it is a stub** — no Cloudinary, no Graph API. It walks the entire
- * pipeline except the network call, so the timing, persistence, and notification paths
- * are all real and proven before Phase 5 swaps in the publish itself.
+ * Uploads the media somewhere Instagram can fetch it, creates the container, waits for
+ * video to finish transcoding where relevant, publishes, and records the outcome.
+ *
+ * A failure is either permanent (Instagram will never accept this) or transient (network,
+ * quota, Instagram having a moment). Only transient failures are retried — retrying a
+ * rejected image every fifteen minutes would burn the daily quota for nothing.
  *
  * It runs as a `CoroutineWorker` rather than inside the alarm receiver because a
  * broadcast receiver gets only a few seconds before the system kills it, and uploading
@@ -75,25 +79,46 @@ class PostWorker(
             return Result.success()
         }
 
-        // ── Phase 5 replaces this block with the real upload + publish ──
-        val fakeMediaId = "stub-${System.currentTimeMillis()}"
+        return when (val result = app.publishRepository.publish(post)) {
+            is PublishResult.Success -> {
+                repository.updateStatus(postId, PostStatus.POSTED)
+                app.historyRepository.record(
+                    PostHistoryEntity(
+                        postId = postId,
+                        postType = post.post.postType,
+                        caption = post.post.caption,
+                        hashtags = post.post.hashtags,
+                        scheduledAt = post.post.scheduledAt,
+                        postedAt = System.currentTimeMillis(),
+                        status = PostStatus.POSTED,
+                        instagramMediaId = result.mediaId,
+                        errorMessage = null,
+                    )
+                )
+                notifier.notifyPosted(postId, post.post.caption, post.mediaItems.size)
+                Result.success()
+            }
 
-        repository.updateStatus(postId, PostStatus.POSTED)
-        app.historyRepository.record(
-            PostHistoryEntity(
-                postId = postId,
-                postType = post.post.postType,
-                caption = post.post.caption,
-                hashtags = post.post.hashtags,
-                scheduledAt = post.post.scheduledAt,
-                postedAt = System.currentTimeMillis(),
-                status = PostStatus.POSTED,
-                instagramMediaId = fakeMediaId,
-                errorMessage = null,
-            )
-        )
-        notifier.notifyWouldHavePosted(postId, post.post.caption, post.mediaItems.size)
-        return Result.success()
+            is PublishResult.TransientFailure -> {
+                // Put it back to SCHEDULED so the queue still shows it as pending and a
+                // retry is not blocked by the "already handled" guard at the top.
+                repository.updateStatus(postId, PostStatus.SCHEDULED)
+                if (runAttemptCount >= MAX_RETRIES) {
+                    fail(postId, post.post.caption, result.reason)
+                    notifier.notifyFailed(postId, post.post.caption, result.reason)
+                    Result.failure()
+                } else {
+                    // WorkManager backs off exponentially between attempts.
+                    Result.retry()
+                }
+            }
+
+            is PublishResult.PermanentFailure -> {
+                fail(postId, post.post.caption, result.reason)
+                notifier.notifyFailed(postId, post.post.caption, result.reason)
+                Result.failure()
+            }
+        }
     }
 
     private suspend fun fail(postId: Long, caption: String, reason: String) {
@@ -117,6 +142,13 @@ class PostWorker(
 
     companion object {
         const val KEY_POST_ID = "postId"
+
+        /**
+         * How many times a transient failure is retried before giving up. Instagram
+         * containers expire after 24 hours, so retrying indefinitely would eventually
+         * be publishing something that no longer exists.
+         */
+        const val MAX_RETRIES = 4
         private const val WORK_NAME_PREFIX = "publish-post-"
 
         fun inputFor(postId: Long): Data = workDataOf(KEY_POST_ID to postId)
