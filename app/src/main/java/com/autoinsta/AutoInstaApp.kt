@@ -62,14 +62,26 @@ class AutoInstaApp : Application() {
         )
     }
 
-    /** Puts a scheduled post on Instagram. Used by PostWorker when a post comes due. */
-    val publishRepository: PublishRepository by lazy {
+    private val realPublishRepository: PublishRepository by lazy {
         PublishRepository(
             uploader = NetworkModule.cloudinaryUploader,
             api = NetworkModule.instagramApi,
             accountRepository = accountRepository,
         )
     }
+
+    /**
+     * Set by instrumented tests to keep them off the network.
+     *
+     * Without this, running the device test suite would publish test content to the
+     * owner's live Instagram account. A test must never be able to do that.
+     */
+    @androidx.annotation.VisibleForTesting
+    var publishRepositoryOverride: PublishRepository? = null
+
+    /** Puts a scheduled post on Instagram. Used by PostWorker when a post comes due. */
+    val publishRepository: PublishRepository
+        get() = publishRepositoryOverride ?: realPublishRepository
 
     val historyRepository: HistoryRepository by lazy {
         HistoryRepository(historyDao = database.postHistoryDao())

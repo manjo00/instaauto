@@ -7,7 +7,11 @@ import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.autoinsta.AutoInstaApp
 import com.autoinsta.data.db.entities.ScheduledPostEntity
+import com.autoinsta.data.db.relations.ScheduledPostWithMedia
+import com.autoinsta.data.remote.NetworkModule
 import com.autoinsta.data.repository.MediaToSave
+import com.autoinsta.data.repository.PublishRepository
+import com.autoinsta.data.repository.PublishResult
 import com.autoinsta.domain.ScheduleCalculator
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.MissedPostPolicy
@@ -17,7 +21,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -25,17 +28,19 @@ import org.junit.runner.RunWith
 import java.io.File
 
 /**
- * Drives [PostWorker] directly, so the publish path is verified without waiting for a
- * real alarm to fire. The timing decisions themselves are covered by
- * `ScheduleCalculatorTest` on the JVM; this checks that the worker acts on them and
- * leaves the database in the right state.
+ * Drives [PostWorker] directly, so its behaviour is verified without waiting for a real
+ * alarm. The timing decisions themselves live in `ScheduleCalculatorTest` on the JVM;
+ * this checks the worker acts on them and leaves the database in the right state.
  *
- * ## These assertions changed when the stub was removed
- * Until Phase 5 the worker faked publishing and always reached POSTED. It now really
- * publishes, so on a machine without Cloudinary credentials — or without network — a due
- * post reaches FAILED with a readable reason instead. That is correct behaviour, not a
- * regression, and the tests below assert the new contract: **the worker must always reach
- * a terminal state and record why**, whichever way it goes.
+ * ## Publishing is faked here, deliberately
+ * A real [PublishRepository] posts to the connected Instagram account. **A test suite
+ * must never be able to do that** — an earlier version of this file could, and running it
+ * once credentials existed was a genuine hazard.
+ *
+ * These substitute a fake publisher through `AutoInstaApp.publishRepositoryOverride` and
+ * assert what the *worker* does with each outcome, which is what this class is actually
+ * responsible for. The publish pipeline itself is covered by `PublishPolicyTest` and
+ * `MediaFitTest`, and was proven against the live services by hand.
  */
 @RunWith(AndroidJUnit4::class)
 class PostWorkerTest {
@@ -47,15 +52,40 @@ class PostWorkerTest {
 
     private val HOUR = 60L * 60L * 1000L
 
+    /** Returns whatever it is told to and never touches the network. */
+    private class FakePublisher(
+        private val result: PublishResult,
+    ) : PublishRepository(
+        uploader = NetworkModule.cloudinaryUploader,
+        api = NetworkModule.instagramApi,
+        accountRepository = ApplicationProvider
+            .getApplicationContext<AutoInstaApp>()
+            .accountRepository,
+    ) {
+        var callCount = 0
+            private set
+
+        override suspend fun publish(post: ScheduledPostWithMedia): PublishResult {
+            callCount++
+            return result
+        }
+    }
+
+    private fun publisherReturning(result: PublishResult): FakePublisher =
+        FakePublisher(result).also { app.publishRepositoryOverride = it }
+
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         app = context as AutoInstaApp
         sourceDir = File(context.cacheDir, "worker-test").apply { mkdirs() }
+        // Default: publishing "succeeds" without going anywhere near Instagram.
+        publisherReturning(PublishResult.Success(FAKE_MEDIA_ID))
     }
 
     @After
     fun tearDown() = runTest {
+        app.publishRepositoryOverride = null
         createdPostIds.forEach { app.postRepository.deletePost(it) }
         createdPostIds.clear()
         sourceDir.deleteRecursively()
@@ -100,65 +130,73 @@ class PostWorkerTest {
 
     private suspend fun statusOf(postId: Long) = app.postRepository.getById(postId)?.post?.status
 
-    // ── The happy path ─────────────────────────────────────────────────────
+    // ── What the worker does with each publish outcome ─────────────────────
 
     @Test
-    fun aDuePostReachesATerminalStateAndRecordsWhy() = runTest {
+    fun aSuccessfulPublishIsMarkedPostedAndRecordsInstagramsId() = runTest {
         val id = givenPost(scheduledAt = System.currentTimeMillis() - 1000L)
 
-        runWorkerFor(id)
+        val result = runWorkerFor(id)
 
-        // Which terminal state depends on whether this machine has Cloudinary
-        // credentials and a reachable network. Both are legitimate; what must never
-        // happen is a post left stuck in POSTING with nothing written down.
-        val status = statusOf(id)
-        assertTrue(
-            "expected POSTED or FAILED, was $status",
-            status == PostStatus.POSTED || status == PostStatus.FAILED || status == PostStatus.SCHEDULED,
-        )
+        assertEquals(ListenableWorker.Result.success(), result)
+        assertEquals(PostStatus.POSTED, statusOf(id))
 
-        if (status == PostStatus.POSTED) {
-            val history = app.historyRepository.getForPost(id)
-            assertEquals(1, history.size)
-            assertNotNull("a real publish records Instagram's media id", history.first().instagramMediaId)
-        } else if (status == PostStatus.FAILED) {
-            val history = app.historyRepository.getForPost(id)
-            assertTrue("a failure must say why", history.any { !it.errorMessage.isNullOrBlank() })
-        }
+        val history = app.historyRepository.getForPost(id)
+        assertEquals(1, history.size)
+        assertEquals(FAKE_MEDIA_ID, history.first().instagramMediaId)
     }
 
     @Test
-    fun aPostWithNoCredentialsFailsWithSomethingActionable() = runTest {
+    fun aPermanentFailureIsRecordedAndNotRetried() = runTest {
+        publisherReturning(PublishResult.PermanentFailure("Image is too tall for Instagram."))
         val id = givenPost(scheduledAt = System.currentTimeMillis() - 1000L)
 
-        runWorkerFor(id)
+        val result = runWorkerFor(id)
 
-        val history = app.historyRepository.getForPost(id)
-        if (statusOf(id) == PostStatus.FAILED) {
-            val reason = history.firstOrNull()?.errorMessage.orEmpty()
-            assertTrue(
-                "the reason should name what to fix, was: $reason",
-                reason.isNotBlank(),
-            )
-        }
+        // Retrying a shape Instagram will never accept would burn the daily quota forever.
+        assertEquals(ListenableWorker.Result.failure(), result)
+        assertEquals(PostStatus.FAILED, statusOf(id))
+        assertTrue(
+            "the recorded reason should be the one the publisher gave",
+            app.historyRepository.getForPost(id).first().errorMessage.orEmpty()
+                .contains("too tall", ignoreCase = true),
+        )
+    }
+
+    @Test
+    fun aTransientFailureIsRetriedAndLeftInTheQueue() = runTest {
+        publisherReturning(PublishResult.TransientFailure("No internet connection."))
+        val id = givenPost(scheduledAt = System.currentTimeMillis() - 1000L)
+
+        val result = runWorkerFor(id)
+
+        assertEquals(ListenableWorker.Result.retry(), result)
+        assertEquals(
+            "the post must go back in the queue or the retry is blocked by the status guard",
+            PostStatus.SCHEDULED,
+            statusOf(id),
+        )
+        assertTrue(
+            "a pending retry is not an outcome worth recording yet",
+            app.historyRepository.getForPost(id).isEmpty(),
+        )
     }
 
     // ── Media gone missing ─────────────────────────────────────────────────
 
     @Test
-    fun aPostWhoseMediaVanishedFailsInsteadOfPublishingNothing() = runTest {
+    fun aPostWhoseMediaVanishedFailsWithoutEvenTryingToPublish() = runTest {
+        val fake = publisherReturning(PublishResult.Success(FAKE_MEDIA_ID))
         val id = givenPost(scheduledAt = System.currentTimeMillis() - 1000L)
-        // Simulate the file being lost after scheduling.
         app.postRepository.getById(id)!!.mediaItems.forEach { File(it.localUri).delete() }
 
         runWorkerFor(id)
 
         assertEquals(PostStatus.FAILED, statusOf(id))
-        val history = app.historyRepository.getForPost(id)
-        assertEquals(PostStatus.FAILED, history.first().status)
+        assertEquals("missing media should short-circuit before any upload", 0, fake.callCount)
         assertTrue(
-            "the failure should say what went wrong",
-            history.first().errorMessage.orEmpty().contains("missing", ignoreCase = true),
+            app.historyRepository.getForPost(id).first().errorMessage.orEmpty()
+                .contains("missing", ignoreCase = true),
         )
     }
 
@@ -166,19 +204,20 @@ class PostWorkerTest {
 
     @Test
     fun defaultPolicyRefusesAPostStalerThanTheGracePeriod() = runTest {
-        val staleBy = ScheduleCalculator.MISSED_GRACE_MILLIS + HOUR
+        val fake = publisherReturning(PublishResult.Success(FAKE_MEDIA_ID))
         val id = givenPost(
-            scheduledAt = System.currentTimeMillis() - staleBy,
+            scheduledAt = System.currentTimeMillis() - (ScheduleCalculator.MISSED_GRACE_MILLIS + HOUR),
             policy = MissedPostPolicy.POST_IF_RECENT,
         )
 
         runWorkerFor(id)
 
         assertEquals(PostStatus.FAILED, statusOf(id))
+        assertEquals("a stale post must not reach Instagram at all", 0, fake.callCount)
     }
 
     @Test
-    fun defaultPolicyStillAttemptsAPostInsideTheGracePeriod() = runTest {
+    fun defaultPolicyPublishesInsideTheGracePeriod() = runTest {
         val id = givenPost(
             scheduledAt = System.currentTimeMillis() - (ScheduleCalculator.MISSED_GRACE_MILLIS / 2),
             policy = MissedPostPolicy.POST_IF_RECENT,
@@ -186,17 +225,11 @@ class PostWorkerTest {
 
         runWorkerFor(id)
 
-        // The point is that the timing rule said "go" — whether the publish then
-        // succeeds depends on credentials and network, which is a different question.
-        assertNotEquals(
-            "a post inside the grace period must be attempted, not left waiting",
-            PostStatus.SCHEDULED,
-            statusOf(id),
-        )
+        assertEquals(PostStatus.POSTED, statusOf(id))
     }
 
     @Test
-    fun postAnywayAttemptsSomethingDaysLate() = runTest {
+    fun postAnywayPublishesSomethingDaysLate() = runTest {
         val id = givenPost(
             scheduledAt = System.currentTimeMillis() - 5L * 24 * HOUR,
             policy = MissedPostPolicy.POST_ANYWAY,
@@ -204,15 +237,12 @@ class PostWorkerTest {
 
         runWorkerFor(id)
 
-        assertNotEquals(
-            "post-anyway must attempt however late it is",
-            PostStatus.SCHEDULED,
-            statusOf(id),
-        )
+        assertEquals(PostStatus.POSTED, statusOf(id))
     }
 
     @Test
     fun askMeLeavesAStalePostUntouchedForTheUser() = runTest {
+        val fake = publisherReturning(PublishResult.Success(FAKE_MEDIA_ID))
         val id = givenPost(
             scheduledAt = System.currentTimeMillis() - 5L * HOUR,
             policy = MissedPostPolicy.ASK_ME,
@@ -225,6 +255,7 @@ class PostWorkerTest {
             PostStatus.SCHEDULED,
             statusOf(id),
         )
+        assertEquals("and must certainly not reach Instagram", 0, fake.callCount)
         assertTrue(app.historyRepository.getForPost(id).isEmpty())
     }
 
@@ -232,29 +263,31 @@ class PostWorkerTest {
 
     @Test
     fun aPostThatIsNotDueYetIsLeftAlone() = runTest {
+        val fake = publisherReturning(PublishResult.Success(FAKE_MEDIA_ID))
         val id = givenPost(scheduledAt = System.currentTimeMillis() + HOUR)
 
         runWorkerFor(id)
 
         assertEquals(PostStatus.SCHEDULED, statusOf(id))
+        assertEquals(0, fake.callCount)
     }
 
     @Test
     fun runningTwiceDoesNotPublishTwice() = runTest {
+        val fake = publisherReturning(PublishResult.Success(FAKE_MEDIA_ID))
         val id = givenPost(scheduledAt = System.currentTimeMillis() - 1000L)
 
         runWorkerFor(id)
-        val afterFirst = app.historyRepository.getForPost(id).size
         runWorkerFor(id)
-        val afterSecond = app.historyRepository.getForPost(id).size
 
-        // Whatever the first run concluded, a second must not add another outcome:
-        // a duplicate here would mean a duplicate on the account.
-        assertEquals("the second run must not record a second outcome", afterFirst, afterSecond)
+        // A duplicate here would be a duplicate on the account.
+        assertEquals("the second run must not publish again", 1, fake.callCount)
+        assertEquals(1, app.historyRepository.getForPost(id).size)
     }
 
     @Test
     fun aDeletedPostIsHandledQuietly() = runTest {
+        val fake = publisherReturning(PublishResult.Success(FAKE_MEDIA_ID))
         val id = givenPost(scheduledAt = System.currentTimeMillis() - 1000L)
         app.postRepository.deletePost(id)
         createdPostIds.remove(id)
@@ -262,5 +295,28 @@ class PostWorkerTest {
         val result = runWorkerFor(id)
 
         assertEquals(ListenableWorker.Result.success(), result)
+        assertEquals(0, fake.callCount)
+    }
+
+    @Test
+    fun theWorkerNeverLeavesAPostStuckInPosting() = runTest {
+        // POSTING is a transient state. A post left there would look permanently
+        // in-flight in the queue and would never be picked up again.
+        listOf(
+            PublishResult.Success(FAKE_MEDIA_ID),
+            PublishResult.PermanentFailure("nope"),
+            PublishResult.TransientFailure("later"),
+        ).forEach { outcome ->
+            publisherReturning(outcome)
+            val id = givenPost(scheduledAt = System.currentTimeMillis() - 1000L)
+
+            runWorkerFor(id)
+
+            assertNotEquals("stuck in POSTING after $outcome", PostStatus.POSTING, statusOf(id))
+        }
+    }
+
+    private companion object {
+        const val FAKE_MEDIA_ID = "fake-media-id-123"
     }
 }

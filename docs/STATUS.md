@@ -154,6 +154,33 @@ drops it).
 provider actually sends. For any external API, assume ids may arrive as either strings or
 numbers and parse permissively.
 
+### 🔴 A test suite that can post to the live account
+**What happened:** `PostWorkerTest` drove the real publish path through
+`AutoInstaApp.publishRepository`. Harmless while publishing was a stub — and a genuine
+hazard the moment Cloudinary credentials existed, because the device test suite could
+then upload media and publish to the owner's actual Instagram account.
+
+**Fix:** `PublishRepository.publish` is `open` and `AutoInstaApp` exposes
+`publishRepositoryOverride`. Tests substitute a fake that returns a canned
+`PublishResult` and never touches the network. This also made the tests *better* — they
+assert exact outcomes again (POSTED / FAILED / retry) instead of "whichever happened".
+
+**Rule:** anything that performs a real-world side effect — posting, sending, paying —
+needs a substitution seam **before** the credentials that make it live exist. Do not rely
+on "the test data is invalid so it will fail anyway."
+
+### 🟠 `connectedAndroidTest` uninstalls the app, wiping its data
+**Symptom:** after a device test run, `run-as com.autoinsta` reported
+`unknown package`, and the connected Instagram account was gone — database, encrypted
+token and all.
+
+**Root cause:** Gradle uninstalls both the app and test APKs when
+`connectedAndroidTest` finishes. Uninstalling takes app-private storage with it.
+
+**Rule:** the device test suite destroys app state. Never run it against a device holding
+anything worth keeping without expecting to reinstall and reconnect afterwards, and
+reinstall immediately after so the owner is not left with a missing app.
+
 ### 🟠 Editing `secrets.properties` does not rebuild BuildConfig
 **Symptom:** filled in real credentials, rebuilt, and `BuildConfig.META_APP_ID` was still
 `""`. No error — the app would just fail to log in with a confusing API error.

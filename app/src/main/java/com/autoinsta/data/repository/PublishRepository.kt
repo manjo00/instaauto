@@ -42,14 +42,18 @@ sealed interface PublishResult {
  * This runs inside a background worker. A network blip should be retried; a 9:16 image
  * Instagram will never accept should not be retried every fifteen minutes forever. The
  * caller uses [PublishResult] to tell those apart.
+ *
+ * `open` so instrumented tests can substitute a fake. Without that seam, running the
+ * device test suite would publish test content to the owner's live Instagram account —
+ * a test suite must never be able to do that.
  */
-class PublishRepository(
+open class PublishRepository(
     private val uploader: CloudinaryUploader,
     private val api: InstagramApi,
     private val accountRepository: AccountRepository,
 ) {
 
-    suspend fun publish(post: ScheduledPostWithMedia): PublishResult = withContext(Dispatchers.IO) {
+    open suspend fun publish(post: ScheduledPostWithMedia): PublishResult = withContext(Dispatchers.IO) {
         val account = accountRepository.get()
             ?: return@withContext PublishResult.PermanentFailure(
                 "No Instagram account connected."
