@@ -17,19 +17,23 @@ Last updated: 2026-08-21
 | 2.5 — Hardening | Media durability fix, pure validation rules, test harness | 14 unit + 14 instrumented tests, lint 0 errors |
 | 3 — Scheduling engine | Alarms fire posts; stub publish + notification; survives reboot | 32 unit + 25 instrumented on the Fold 7, alarms verified via `dumpsys alarm` |
 | 4 — Account connect | Instagram login via Custom Tabs; 60-day token, auto-renewed | 59 unit + 28 instrumented on the Fold 7; **connected to the real account**, token encrypted, weekly renewal job verified in `dumpsys jobscheduler` |
+| 5a — Real publishing | Cloudinary upload + Graph API publish; image / Reel / carousel | 107 unit + 31 instrumented; **a real post reached the live account**; PNG→JPEG and 9:16→4:5 fitting proven against live Cloudinary |
 
 ## In flight
 
-Nothing. Phase 5 (Cloudinary upload + real Graph API publish) is next and not started.
+**Phase 5b — the media fitting editor.** Not started.
 
-**Where the app actually is:** it schedules posts, fires them on time, and is connected to
-a real Instagram account with a valid 60-day token — but `PostWorker` is still a **stub**.
-At the appointed time it verifies the media, marks the post POSTED, writes history and
-notifies, without contacting Instagram. Phase 5 replaces that one block.
+**Where the app actually is: it works.** It schedules a post, fires it on time, uploads the
+media, publishes to Instagram, and records the result. Verified with a real post to the
+live account on 2026-08-26.
+
+What 5b adds is control over *shape*. Instagram only accepts 4:5 to 1.91:1, and 5a always
+pads out-of-range images — safe, since nothing is cropped without consent and nothing
+fails, but not a choice. 5b gives per-image preview, manual crop with the accepted frame
+drawn as a guide, and a pad-or-crop decision per item.
 
 ## Not built yet
 
-- **Phase 5** — Cloudinary upload + real Graph API publish.
 - **Phase 6** — Polish, hashtag-preset management screen, in-app manual.
 - **Phase 7** — Release prep.
 

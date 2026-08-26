@@ -149,14 +149,17 @@ CLAUDE.md                              this file — the first thing a fresh cha
 | 2.5 | Media durability, pure validation, test harness | ✅ Built |
 | 3 | Scheduling engine — alarms, worker, boot re-arm, notifications | ✅ Built (publish is a stub) |
 | 4 | Account connect — Business Login for Instagram, 60-day token | ✅ Built |
-| 5 | Cloudinary upload + real Graph API publish | ⏳ **Next** |
+| 5a | Cloudinary upload + real Graph API publish | ✅ Built — **posts for real** |
+| 5b | Media fitting editor — preview, manual crop, per-item pad/crop | ⏳ **Next** |
 | 6 | Polish, presets screen, **in-app manual** | ⏳ Planned |
 | 7 | Release prep — signing, R8 | ⏳ Planned |
 
-**Today the app fires on schedule and is connected to a real Instagram account, but does
-not publish.** At the appointed time it wakes, checks the media is still on disk, marks
-the post POSTED, writes history, and notifies "would have posted now". Phase 5 replaces
-that one block with the real Graph API call.
+**Today the app works end to end**: schedule a post, it fires on time, uploads to
+Cloudinary, publishes to Instagram, records the result and notifies. Verified with a real
+post to the live account on 2026-08-26.
+
+⚠️ **Instagram accepts only 4:5 to 1.91:1 images, JPEG only.** `MediaFit` handles both by
+transforming the Cloudinary *delivery URL* — the stored original is never touched.
 
 ⚠️ **Never put an OAuth login in a WebView** — Instagram's renders blank inside one, with
 no error. Custom Tabs only. And **Meta rejects custom-scheme redirect URIs**; the app uses

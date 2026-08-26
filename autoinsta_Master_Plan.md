@@ -63,9 +63,16 @@ connected account and days remaining; refresh runs on launch. A WebView was trie
 and does not work — see `docs/plans/2026-08-25-account-connect.md`.
 Account setup: `docs/SETUP_GUIDE.md`.
 
-### Phase 5 — Media upload + real publish
-`CloudinaryUploader` (unsigned). Wire `PostWorker` to the real Graph API pipeline for
-all 3 types (image, Reel w/ status polling, carousel). Write `PostHistory` on success.
+### ✅ Phase 5a — Media upload + real publish
+`CloudinaryUploader` (unsigned) + the Graph API pipeline for all 3 types. Verified with a
+real post to the live account 2026-08-26.
+
+### Phase 5b — Media fitting editor
+Instagram accepts only 4:5 to 1.91:1, which rejects a lot of art. 5a always pads. 5b adds
+per-image preview, manual crop against a guide showing the accepted frame, and a
+pad-or-crop choice per item. Note Meta crops every carousel image to match the **first**
+item, so the target ratio is shared — the editor must surface that rather than let the
+owner set something Instagram will override.
 
 ### Phase 6 — Polish + hardening
 Retry/backoff tuning, edge cases (token expired mid-post, network loss, Doze),
@@ -114,9 +121,11 @@ prerequisite for Phases 4 and 5.
 - ~~**Meta app review**~~ — **resolved 2026-08-25**: Meta requires App Review + Business
   Verification only for apps serving accounts the developer does *not* own. Posting to
   your own account is **Standard Access**, the default. No review needed.
-- **JPEG only** — Meta rejects PNG outright. Digital art is often exported as PNG, so
-  those files must be converted (lossy) somewhere in the pipeline. JPEG originals are
-  unaffected. Handle in Phase 5 via Cloudinary delivery format.
+- ~~**JPEG only**~~ — **handled**: every Cloudinary delivery URL carries `f_jpg`, verified
+  against the live service (a 1080×1920 PNG came back as 1440×1800 JPEG). PNG sources
+  still take a one-time lossy conversion; JPEG sources pass through untouched.
+- **Instagram accepts only 4:5 to 1.91:1** — narrow for art. 5a pads automatically so
+  nothing fails; 5b hands the choice to the owner.
 - ~~**Redirect URI format unconfirmed**~~ — **settled by testing**: Meta accepts https only
   and rejects custom schemes outright. Embedded webviews are blocked. Solved with Custom
   Tabs plus a GitHub Pages bounce page.
