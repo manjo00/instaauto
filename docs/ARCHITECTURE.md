@@ -28,15 +28,18 @@ free host (Cloudinary unsigned preset) to get the public URL the API requires.
 data/
   db/        Room: entities (ScheduledPost, MediaItem, HashtagPreset, PostHistory, Account) + DAOs + AppDatabase
   media/     MediaFileStore  — copies picked media into app-private storage  ✅
-  remote/    InstagramAuthApi + dto/ ✅ · NetworkModule ✅ · OAuthRedirectBus ✅
-             InstagramApi (publishing), CloudinaryUploader                       ⏳
-  repository/ PostRepository, PresetRepository, AccountRepository, HistoryRepository
+  remote/    InstagramAuthApi · InstagramApi · CloudinaryUploader
+             NetworkModule · OAuthRedirectBus · dto/                            ✅
+  repository/ PostRepository · PresetRepository · AccountRepository
+             HistoryRepository · PublishRepository                              ✅
   prefs/     TokenStore (EncryptedSharedPreferences)                            ✅
 domain/
   model/     PostType (SINGLE_IMAGE | REEL | CAROUSEL), PostStatus, MediaType
-  PostValidator.kt     pure post rules — unit-tested, no Android deps           ✅
-  ScheduleCalculator.kt when things fire, missed-post rules                      ✅
-  TokenLifecycle.kt    when the Instagram login needs refreshing                 ✅
+  PostValidator.kt      pure post rules                                          ✅
+  ScheduleCalculator.kt when things fire, missed-post rules                       ✅
+  TokenLifecycle.kt     when the Instagram login needs refreshing                 ✅
+  MediaFit.kt           which shapes Instagram accepts, and how to fix them       ✅
+  PublishPolicy.kt      polling cadence, quota, caption limits                    ✅
 scheduler/                                                                      ✅
   PostScheduler   arms/cancels exact alarms; reports whether exact timing is allowed
   AlarmReceiver   receives the alarm, immediately hands off to the worker
@@ -46,8 +49,9 @@ scheduler/                                                                      
   TokenRefreshWorker  weekly job that stops the Instagram login lapsing
 ui/
   theme/  home/  composepost/  components/    ✅ built
-  settings/                                  ✅ built (account connect)
-  presets/  history/  manual/                ⏳ planned
+  settings/                                  ✅ account connect
+  composepost/ + MediaFitEditor              ✅ compose a post, fit each image
+  presets/  history/  manual/                ⏳ planned (Phase 6)
 AutoInstaApp.kt   Application (DB + WorkManager init)
 MainActivity.kt   single-activity, Compose NavHost
 ```
@@ -70,6 +74,13 @@ restart, because alarms are forgotten on reboot.
 
 Every "when" decision lives in the pure `domain/ScheduleCalculator`, including the
 per-post [MissedPostPolicy] rule for posts whose time passed while the phone was off.
+
+## Media fitting — why the delivery URL, not the file
+Instagram accepts only **4:5 to 1.91:1**, and **JPEG only**. Rather than altering the
+stored file, `MediaFit` produces a Cloudinary **delivery transformation** that is appended
+to the URL handed to Instagram. The original stays exactly as exported, and the fit is
+reversible and changeable without re-uploading. Per-item choice (pad / crop / as-is) plus
+a crop offset live on `media_items`; the editor is `ui/composepost/MediaFitEditor.kt`.
 
 ## The publishing pipeline (the heart of the app)
 Runs inside `PostWorker` when the scheduled time fires:

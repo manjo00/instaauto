@@ -18,19 +18,23 @@ Last updated: 2026-08-21
 | 3 — Scheduling engine | Alarms fire posts; stub publish + notification; survives reboot | 32 unit + 25 instrumented on the Fold 7, alarms verified via `dumpsys alarm` |
 | 4 — Account connect | Instagram login via Custom Tabs; 60-day token, auto-renewed | 59 unit + 28 instrumented on the Fold 7; **connected to the real account**, token encrypted, weekly renewal job verified in `dumpsys jobscheduler` |
 | 5a — Real publishing | Cloudinary upload + Graph API publish; image / Reel / carousel | 107 unit + 31 instrumented; **a real post reached the live account**; PNG→JPEG and 9:16→4:5 fitting proven against live Cloudinary |
+| 5b — Fitting editor | Per-image preview, manual crop against Instagram's frame, pad/crop choice | 119 unit + 33 instrumented; schema v3 with migration tests |
 
 ## In flight
 
-**Phase 5b — the media fitting editor.** Not started.
+**Phase 6 — polish, presets + history screens, in-app manual.** Not started.
+
+Two things built but never surfaced: `post_history` is written on every publish and has no
+screen, and hashtag presets have a table and repository but no way to create one — so the
+picker on the compose screen is always empty.
 
 **Where the app actually is: it works.** It schedules a post, fires it on time, uploads the
 media, publishes to Instagram, and records the result. Verified with a real post to the
 live account on 2026-08-26.
 
-What 5b adds is control over *shape*. Instagram only accepts 4:5 to 1.91:1, and 5a always
-pads out-of-range images — safe, since nothing is cropped without consent and nothing
-fails, but not a choice. 5b gives per-image preview, manual crop with the accepted frame
-drawn as a guide, and a pad-or-crop decision per item.
+5b added control over *shape*: tap any thumbnail for a full-screen preview with
+Instagram's frame drawn over the artwork, choose Fit (bars) or Crop, and drag to pick what
+survives. **Not yet tried on real artwork by the owner** — that is the open verification.
 
 ## Not built yet
 

@@ -67,7 +67,7 @@ Account setup: `docs/SETUP_GUIDE.md`.
 `CloudinaryUploader` (unsigned) + the Graph API pipeline for all 3 types. Verified with a
 real post to the live account 2026-08-26.
 
-### Phase 5b — Media fitting editor
+### ✅ Phase 5b — Media fitting editor
 Instagram accepts only 4:5 to 1.91:1, which rejects a lot of art. 5a always pads. 5b adds
 per-image preview, manual crop against a guide showing the accepted frame, and a
 pad-or-crop choice per item. Note Meta crops every carousel image to match the **first**
@@ -134,4 +134,4 @@ prerequisite for Phases 4 and 5.
 
 ---
 
-*Last updated: 2026-08-25. Update when scope or a locked decision changes.*
+*Last updated: 2026-08-26. Update when scope or a locked decision changes.*

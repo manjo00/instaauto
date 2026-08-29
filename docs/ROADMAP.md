@@ -1,70 +1,99 @@
 # ROADMAP
 
-Ideas captured so they aren't lost. **Nothing here is started without the owner's
-say-so.** Each item is sized and sketched so it can be picked up cold.
+Ideas and debt captured so they aren't lost. **Nothing here is started without the
+owner's say-so.** Each item is sized and sketched so it can be picked up cold.
 
 Sizes: **S** ≈ half a session · **M** ≈ one session · **L** ≈ multiple sessions
 
-Last updated: 2026-08-21
+Last updated: 2026-08-26
 
 ---
 
 ## Committed — the phased plan
 
-These are in `autoinsta_Master_Plan.md` and are the default order of work.
+| | Item | Size | State |
+|---|---|---|---|
+| Phase 6 | Polish, hashtag-preset screen, history screen, **in-app manual** | **L** | ⏳ Next |
+| Phase 7 | Release prep — signing, R8, versioning | **M** | ⏳ Planned |
 
-| | Item | Size |
-|---|---|---|
-| Phase 3 | Scheduling engine — `PostScheduler`, `PostWorker`, `BootReceiver` | **L** |
-| Phase 4 | Instagram account connect (Facebook Login → long-lived token) | **L** |
-| Phase 5 | Cloudinary upload + real Graph API publish (image / Reel / carousel) | **L** |
-| Phase 6 | Polish, hashtag-preset management screen, error states | **M** |
-| Phase 7 | Release prep — signing, R8 | **M** |
+Phases 0–5b are done. See `autoinsta_Master_Plan.md` and `docs/STATUS.md`.
 
 ---
 
-## Now scheduled into Phase 6 — in-app manual
+## Phase 6 — what's actually in it
 
-**Size: M.** A feature isn't finished until the manual describes it, so this needs to
-exist before Phase 6 features land, not after.
+Nothing here is built. Sub-items so it can be taken in pieces:
 
-Sketch: a `ui/manual/` screen fed by a structured list (not free prose) so entries can
-be searched. Each entry carries a title, plain-language body, and **search keywords in
-the owner's words** rather than the code's. Two special sections:
+| Item | Size | Notes |
+|---|---|---|
+| **In-app manual** | **M** | A feature isn't finished until the manual describes it — this is the debt for everything built so far. Sketch below. |
+| **History screen** | **S** | `post_history` is written on every publish and never shown. Success/failure, when, why. |
+| **Hashtag preset screen** | **S** | The table and repository exist; there is no UI to create or edit presets, so the picker on the compose screen is always empty. |
+| **Retry/backoff tuning** | **S** | `MAX_RETRIES = 4` was chosen, not measured. |
+| **Empty/error states** | **S** | Several screens assume the happy path. |
+| **App icon** | **S** | Still the default adaptive placeholder. |
 
-- **Hidden gems** — anything undiscoverable by tapping around (long-press, swipe, gestures).
-- **What's new** — populated per release, kept until the next release replaces it,
-  shown once automatically after an update.
+### The in-app manual, sketched
+
+A `ui/manual/` screen fed by a structured list (not free prose) so entries are searchable.
+Each carries a title, plain-language body, and **search keywords in the owner's words**.
+
+Two special sections:
+- **Hidden gems** — anything undiscoverable by tapping: the ⚡ debug fire-now bolt,
+  tapping a thumbnail to open the fitting editor, the per-post missed-time rule.
+- **What's new** — per release, kept until the next replaces it, shown once after update.
 
 Content rule: describe **what the code actually does**, never what it was meant to do.
 
 ---
 
-## Unsized / unowned ideas
+## Technical debt
 
-Nothing captured yet. Passing thoughts land here rather than getting lost in chat.
+Ordered by how likely it is to bite.
+
+| Item | Size | Why it matters |
+|---|---|---|
+| **Measure App Standby impact** | **S** | Buckets are active on the Fold 7 and autoinsta is a "set it and forget it" app — the usage pattern most likely to be demoted. Needs days of real observation, not a test. Could silently delay posts. |
+| **Compose UI tests** | **M** | The fitting editor's drag gesture, the compose screen, and the queue have no automated coverage. Their *logic* is covered by pure tests; the interactions are not. |
+| **Media disk-usage cap** | **S** | A queue of 10-item carousels could sit on hundreds of MB. Nothing prunes orphaned files beyond per-post cleanup. |
+| **Hilt instead of manual DI** | **M** | `AutoInstaApp` hand-wires everything. It works, but `publishRepositoryOverride` exists purely as a test seam — a DI framework would give that properly. |
+| **`TokenStore` has no instrumented test** | **S** | Encryption against the real Keystore is unverified by test; only by hand. |
+| **Meta error parsing uses a regex** | **S** | `AccountRepository.extractMetaMessage` and `PublishRepository.metaMessage` scrape the body because Meta's error shape varies. `MetaErrorEnvelopeDto` exists and could be tried first with the regex as fallback. |
+| **`PostWorkerTest` uses the real app instance** | **S** | It substitutes a fake publisher (safe), but still reads/writes the real database because `PostWorker` reaches for `applicationContext as AutoInstaApp`. |
+
+---
+
+## Fitting editor — deliberate limitations
+
+Not bugs; decisions worth revisiting only if they prove annoying in use.
+
+| Limitation | Why | Size to change |
+|---|---|---|
+| No pinch-to-zoom | The crop window is always the largest allowed rectangle, so the owner picks *which part*, not *how much*. Zooming in means scaling up, which softens artwork. | **M** |
+| Videos skip fitting entirely | Instagram's video rules are codec/duration/bitrate, none of which a crop addresses. | **M** |
+| Pad colour is always white | A sampled edge colour or a dark option would suit some art better. | **S** |
+
+---
+
+## Environment quirks (not app problems)
+
+| Item | Notes |
+|---|---|
+| **Emulator dies after boot** | `Pixel_10_Pro` exits shortly after booting on this machine. Worked around by testing on the physical Fold 7. Undiagnosed. |
+| **`connectedAndroidTest` uninstalls the app** | Takes the database and Instagram token with it. Reinstall and reconnect afterwards. See STATUS. |
+| **The OAuth bounce page lives in `docs/`** | Enabling GitHub Pages therefore publishes the project docs too. Harmless (no secrets), but a dedicated `gh-pages` branch would be tidier if the repo ever needs to be private. |
 
 ---
 
 ## Deliberately out of scope for v1
 
-Recorded so they don't get re-litigated — see the Master Plan's locked decisions.
+Recorded so they aren't re-litigated.
 
-| Idea | Why not now |
+| Idea | Why not |
 |---|---|
-| Backend / cloud scheduling | v1 is on-device only; adds cost, hosting, and an account system |
-| Multiple Instagram accounts | Single account in v1; the DB schema already allows more later |
-| UI-automation posting (tapping the real IG app) | Violates Instagram ToS and risks the account. Graph API only. **Never revisit.** |
-| Analytics / insights, comment or DM automation | Out of scope; different product |
+| Backend / cloud scheduling | v1 is on-device only; adds cost, hosting, an account system |
+| Multiple Instagram accounts | Single account in v1; the schema already allows more later |
+| **UI-automation posting** (tapping the real IG app) | Violates Instagram's ToS and risks the account. Graph API only. **Never revisit.** |
+| Stories, product tagging, collaborators, `alt_text` | Supported by the API; out of scope for v1 |
+| Analytics / insights, comment or DM automation | Different product |
 | iOS | Out of scope |
-
----
-
-## Technical debt worth paying down
-
-| Item | Size | Why it matters |
-|---|---|---|
-| Replace `fallbackToDestructiveMigration()` with real Room migrations | **S** | Today any schema change silently wipes the user's queue |
-| Compose UI tests for the create/edit screen and queue | **M** | Currently only the data layer and validation rules are covered |
-| Media disk-usage cap / cleanup of orphaned files | **S** | A big carousel queue could sit on hundreds of MB |
-| Dependency injection (Hilt) instead of manual wiring in `AutoInstaApp` | **M** | Fine at 4 repositories; gets awkward once the scheduler and network layers land |

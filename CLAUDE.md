@@ -8,6 +8,34 @@ API**, no backend server. Target user: a **digital-art Instagram account** (Crea
 
 ---
 
+## 🚦 START HERE — state as of 2026-08-26
+
+**The app works.** Schedule a post → it fires on time → uploads to Cloudinary →
+publishes to Instagram → records the result and notifies. Proven with a real post to the
+live account (`@manjo_4`).
+
+| | |
+|---|---|
+| Built | Phases 0 → 5b (see the BUILT vs PLANNED table below) |
+| Next | **Phase 6** — polish, presets + history screens, in-app manual |
+| Tests | 119 unit (JVM) + 33 instrumented (device), lint 0 errors |
+| Device | Samsung Galaxy Z Fold 7 (`R5CX631BMJB`), Android 16 / API 36 |
+| Repo | https://github.com/manjo00/instaauto (private), branch `main` |
+
+**Unverified right now:** the fitting editor (Phase 5b) has not been tried on real
+artwork by the owner. That is the first thing to confirm.
+
+**Read in this order:** this file → `docs/STATUS.md` (gotchas, each with its root cause)
+→ `docs/ROADMAP.md` (debt and ideas) → `docs/ARCHITECTURE.md` (the map).
+Then the specific files for the task. Don't grep the whole codebase.
+
+**Two things surface repeatedly and will bite again:**
+1. Editing `secrets.properties` does **not** rebuild BuildConfig — force it and verify.
+2. `connectedAndroidTest` **uninstalls the app**, taking the database and Instagram token.
+   Reinstall and expect to reconnect.
+
+---
+
 ## 👤 WHO YOU'RE WORKING WITH
 
 The owner is a **beginner at mobile development**. Before using a new concept, explain
@@ -150,8 +178,8 @@ CLAUDE.md                              this file — the first thing a fresh cha
 | 3 | Scheduling engine — alarms, worker, boot re-arm, notifications | ✅ Built (publish is a stub) |
 | 4 | Account connect — Business Login for Instagram, 60-day token | ✅ Built |
 | 5a | Cloudinary upload + real Graph API publish | ✅ Built — **posts for real** |
-| 5b | Media fitting editor — preview, manual crop, per-item pad/crop | ⏳ **Next** |
-| 6 | Polish, presets screen, **in-app manual** | ⏳ Planned |
+| 5b | Media fitting editor — preview, manual crop, per-item pad/crop | ✅ Built |
+| 6 | Polish, presets + history screens, **in-app manual** | ⏳ **Next** |
 | 7 | Release prep — signing, R8 | ⏳ Planned |
 
 **Today the app works end to end**: schedule a post, it fires on time, uploads to
@@ -173,6 +201,7 @@ an https bounce page (`docs/oauth/index.html`, served by GitHub Pages) that forw
 | 1 | Initial: `scheduled_posts`, `media_items`, `hashtag_presets`, `post_history`, `account` |
 | 1 (semantic) | `media_items.localUri` changed meaning: was a `content://` picker address, now an **app-private file path**. No schema change — the column is still `TEXT`. |
 | 2 | `scheduled_posts.missedPolicy` added (per-post rule for a post whose time passed while the device was off). Real `Migration(1,2)`; **`fallbackToDestructiveMigration()` removed**. |
+| 3 | `media_items` gained `widthPx`, `heightPx`, `fitMode`, `cropOffset` — per-image fitting. `Migration(2,3)` defaults to PAD at centre, matching previous behaviour. |
 
 ✅ Real migrations are in place (`data/db/Migrations.kt`). **Every schema change now needs
 a migration there plus a case in `MigrationTest`** — schemas are exported to `app/schemas/`
