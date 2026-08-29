@@ -130,4 +130,57 @@ class PostValidatorTest {
         assertEquals(10, PostValidator.maxMediaFor(PostType.CAROUSEL))
         assertEquals(2, PostValidator.minMediaFor(PostType.CAROUSEL))
     }
+
+    // ── Queued posts have no time to check ─────────────────────────────────
+
+    @Test
+    fun `a queued post is not asked for a time`() {
+        // The planner supplies the moment, so there is nothing here to be "in the past".
+        assertEquals(
+            PostValidation.Valid,
+            PostValidator.validateMedia(PostType.SINGLE_IMAGE, mediaCount = 1),
+        )
+    }
+
+    @Test
+    fun `a queued post still has to have media`() {
+        assertEquals(
+            PostValidation.Invalid(PostValidation.Reason.NO_MEDIA),
+            PostValidator.validateMedia(PostType.SINGLE_IMAGE, mediaCount = 0),
+        )
+    }
+
+    @Test
+    fun `a queued carousel still has to be the right size`() {
+        assertEquals(
+            PostValidation.Invalid(PostValidation.Reason.CAROUSEL_TOO_FEW),
+            PostValidator.validateMedia(PostType.CAROUSEL, mediaCount = 1),
+        )
+        assertEquals(
+            PostValidation.Invalid(PostValidation.Reason.CAROUSEL_TOO_MANY),
+            PostValidator.validateMedia(PostType.CAROUSEL, mediaCount = 11),
+        )
+        assertEquals(
+            PostValidation.Invalid(PostValidation.Reason.TOO_MANY_FOR_TYPE),
+            PostValidator.validateMedia(PostType.REEL, mediaCount = 2),
+        )
+    }
+
+    @Test
+    fun `the full check is the media check plus the time`() {
+        // The two must not drift apart: a fixed post gets exactly the queued post's
+        // media rules, and one more question on top.
+        listOf(
+            PostType.SINGLE_IMAGE to 0,
+            PostType.CAROUSEL to 1,
+            PostType.CAROUSEL to 11,
+            PostType.REEL to 2,
+        ).forEach { (type, count) ->
+            assertEquals(
+                "media verdict differs for $type with $count",
+                PostValidator.validateMedia(type, count),
+                PostValidator.validate(type, count, scheduledAtMillis = 2L, nowMillis = 1L),
+            )
+        }
+    }
 }

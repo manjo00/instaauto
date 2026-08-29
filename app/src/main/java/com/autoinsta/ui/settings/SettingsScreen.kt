@@ -62,6 +62,7 @@ import com.autoinsta.domain.TokenLifecycle
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
+    onOpenSchedule: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -147,6 +148,9 @@ fun SettingsScreen(
                     onDismiss = viewModel::consumeMessages,
                 )
             }
+
+            Text("Queue", style = MaterialTheme.typography.titleMedium)
+            ScheduleEntryCard(onClick = onOpenSchedule)
         }
     }
 
@@ -170,6 +174,22 @@ fun SettingsScreen(
                 TextButton(onClick = { confirmDisconnect = false }) { Text("Cancel") }
             },
         )
+    }
+}
+
+@Composable
+private fun ScheduleEntryCard(onClick: () -> Unit) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Posting schedule", style = MaterialTheme.typography.titleSmall)
+            Text(
+                text = "The days and times your queue goes out, the pause switch, and " +
+                    "what happens when a slot is missed.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
     }
 }
 

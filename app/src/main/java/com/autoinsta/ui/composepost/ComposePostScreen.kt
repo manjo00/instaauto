@@ -79,6 +79,10 @@ import com.autoinsta.domain.MediaFit
 import com.autoinsta.domain.PostValidator
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.MissedPostPolicy
+import com.autoinsta.domain.model.TimingMode
+import com.autoinsta.data.repository.QueuePreview
+import com.autoinsta.ui.queue.agoLabel
+import com.autoinsta.ui.queue.momentLabel
 import com.autoinsta.domain.model.PostType
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -106,6 +110,7 @@ fun ComposePostScreen(
                     postId = postId,
                     postRepository = app.postRepository,
                     presetRepository = app.presetRepository,
+                    queueRepository = app.queueRepository,
                 )
             }
         },
@@ -227,19 +232,36 @@ fun ComposePostScreen(
                 onHashtagsChange = viewModel::setHashtags,
             )
 
-            ScheduleSection(
-                scheduledAtMillis = state.scheduledAtMillis,
-                onScheduledAtChange = viewModel::setScheduledAt,
+            TimingModeSelector(
+                selected = state.timingMode,
+                onSelect = viewModel::setTimingMode,
             )
+
+            if (state.timingMode == TimingMode.QUEUED) {
+                QueueTimingSection(
+                    preview = state.queuePreview,
+                    waitForNextSlot = state.waitForNextSlot,
+                    onWaitChange = viewModel::setWaitForNextSlot,
+                )
+            } else {
+                ScheduleSection(
+                    scheduledAtMillis = state.scheduledAtMillis,
+                    onScheduledAtChange = viewModel::setScheduledAt,
+                )
+            }
 
             if (!state.canScheduleExact) {
                 ExactAlarmBanner(onFixClick = { openExactAlarmSettings(context) })
             }
 
-            MissedPostSection(
-                selected = state.missedPolicy,
-                onSelect = viewModel::setMissedPolicy,
-            )
+            // A queued post is never failed for being late — the catch-up window on the
+            // posting-schedule screen decides for the whole queue instead.
+            if (state.timingMode == TimingMode.FIXED) {
+                MissedPostSection(
+                    selected = state.missedPolicy,
+                    onSelect = viewModel::setMissedPolicy,
+                )
+            }
 
             if (state.errorMessage != null) {
                 Text(
@@ -518,6 +540,108 @@ private fun Spacer(heightDp: Int) {
 // the app is running, and SimpleDateFormat is not thread-safe to share.
 private fun dateFormat() = SimpleDateFormat("EEE, MMM d yyyy", Locale.getDefault())
 private fun timeFormat() = SimpleDateFormat("h:mm a", Locale.getDefault())
+
+/**
+ * Queue or a set time.
+ *
+ * Queue is first and selected by default: a finished piece usually just wants to join the
+ * rotation, and picking a date at that moment is the decision the queue exists to remove.
+ * A set time stays available for the occasional post that genuinely has a date.
+ */
+@Composable
+private fun TimingModeSelector(
+    selected: TimingMode,
+    onSelect: (TimingMode) -> Unit,
+) {
+    val options = listOf(
+        TimingMode.QUEUED to "Add to queue",
+        TimingMode.FIXED to "Pick a time",
+    )
+    Column {
+        Text("When", style = MaterialTheme.typography.labelLarge)
+        Spacer(8)
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            options.forEachIndexed { index, (mode, label) ->
+                SegmentedButton(
+                    selected = selected == mode,
+                    onClick = { onSelect(mode) },
+                    shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                ) {
+                    Text(label)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * What the queue will do with this post, said plainly before it is saved.
+ *
+ * The case that matters is the last one: a slot passed while the pool was empty, and
+ * saving now would publish within the minute. That is correct behaviour and still a
+ * shock the first time, so it is stated with the alternative one tap away.
+ */
+@Composable
+private fun QueueTimingSection(
+    preview: QueuePreview?,
+    waitForNextSlot: Boolean,
+    onWaitChange: (Boolean) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            when {
+                preview == null -> Text(
+                    "Working out when this would go out…",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+
+                preview.paused -> Text(
+                    "The queue is paused, so this will wait in line until you resume it.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+
+                !preview.hasSlots -> Text(
+                    "You haven't set any posting times yet, so this will wait in line. " +
+                        "Add them under Posting schedule and it'll go out at the next one.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+
+                preview.isCatchUp && !waitForNextSlot -> {
+                    val ago = agoLabel(System.currentTimeMillis() - (preview.atMillis ?: 0L))
+                    Text(
+                        text = "This will post now — it fills " +
+                            "${momentLabel(preview.atMillis ?: 0L)}, which passed $ago.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    preview.nextSlotAfterMillis?.let { next ->
+                        Spacer(8)
+                        OutlinedButton(onClick = { onWaitChange(true) }) {
+                            Text("Wait for ${momentLabel(next)} instead")
+                        }
+                    }
+                }
+
+                waitForNextSlot -> {
+                    Text(
+                        text = "Goes out ${momentLabel(preview.nextSlotAfterMillis ?: preview.atMillis ?: 0L)}.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(8)
+                    TextButton(onClick = { onWaitChange(false) }) {
+                        Text("Use the earlier slot instead")
+                    }
+                }
+
+                else -> Text(
+                    text = "Goes out ${momentLabel(preview.atMillis ?: 0L)} — " +
+                        "number ${preview.position} in the queue.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

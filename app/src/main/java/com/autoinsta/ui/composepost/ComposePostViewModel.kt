@@ -7,11 +7,14 @@ import com.autoinsta.data.db.entities.ScheduledPostEntity
 import com.autoinsta.data.repository.MediaToSave
 import com.autoinsta.data.repository.PostRepository
 import com.autoinsta.data.repository.PresetRepository
+import com.autoinsta.data.repository.QueuePreview
+import com.autoinsta.data.repository.QueueRepository
 import com.autoinsta.domain.PostValidation
 import com.autoinsta.domain.MediaFit
 import com.autoinsta.domain.PostValidator
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.MissedPostPolicy
+import com.autoinsta.domain.model.TimingMode
 import com.autoinsta.domain.model.PostStatus
 import com.autoinsta.domain.model.PostType
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +61,18 @@ data class ComposePostUiState(
     val hashtags: String = "",
     val selectedPresetId: Long? = null,
     val presets: List<HashtagPresetEntity> = emptyList(),
+    /**
+     * Queue by default: a finished piece usually just wants to join the rotation, and
+     * deciding an exact date at that moment is the decision the queue exists to remove.
+     */
+    val timingMode: TimingMode = TimingMode.QUEUED,
+    /**
+     * Where the queue would put this post. Null while it is being worked out, or when
+     * the queue cannot place it at all (paused, or no slots defined).
+     */
+    val queuePreview: QueuePreview? = null,
+    /** The owner was warned this would fill a slot that just passed, and declined. */
+    val waitForNextSlot: Boolean = false,
     /** Epoch millis for the chosen publish time. Defaults to "now + 1 hour". */
     val scheduledAtMillis: Long = System.currentTimeMillis() + 60L * 60L * 1000L,
     val missedPolicy: MissedPostPolicy = MissedPostPolicy.POST_IF_RECENT,
@@ -81,6 +96,7 @@ class ComposePostViewModel(
     private val postId: Long?,
     private val postRepository: PostRepository,
     private val presetRepository: PresetRepository,
+    private val queueRepository: QueueRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -90,6 +106,8 @@ class ComposePostViewModel(
 
     private var existingCreatedAt: Long = System.currentTimeMillis()
     private var existingWorkRequestId: String? = null
+    /** Kept so editing a queued post does not knock it out of its place in the pool. */
+    private var existingQueuePosition: Int? = null
 
     init {
         viewModelScope.launch {
@@ -97,7 +115,19 @@ class ComposePostViewModel(
                 _uiState.update { it.copy(presets = presets) }
             }
         }
-        if (postId != null) loadExisting(postId)
+        if (postId != null) loadExisting(postId) else refreshQueuePreview()
+    }
+
+    /**
+     * Work out where the queue would put this post, so the screen can say so before it is
+     * saved — including the case where it would fill a slot that has just passed and go
+     * out within the minute. That is exactly the surprise worth spending a query on.
+     */
+    private fun refreshQueuePreview() {
+        viewModelScope.launch {
+            val preview = queueRepository.previewForNewPost()
+            _uiState.update { it.copy(queuePreview = preview) }
+        }
     }
 
     private fun loadExisting(id: Long) {
@@ -111,6 +141,7 @@ class ComposePostViewModel(
             }
             existingCreatedAt = existing.post.createdAt
             existingWorkRequestId = existing.post.workRequestId
+            existingQueuePosition = existing.post.queuePosition
             _uiState.update {
                 it.copy(
                     isLoading = false,
@@ -134,9 +165,22 @@ class ComposePostViewModel(
                     selectedPresetId = existing.post.presetId,
                     scheduledAtMillis = existing.post.scheduledAt,
                     missedPolicy = existing.post.missedPolicy,
+                    timingMode = existing.post.timingMode,
+                    waitForNextSlot = existing.post.notBeforeMillis != null,
                 )
             }
+            refreshQueuePreview()
         }
+    }
+
+    fun setTimingMode(mode: TimingMode) {
+        _uiState.update { it.copy(timingMode = mode, errorMessage = null) }
+        if (mode == TimingMode.QUEUED) refreshQueuePreview()
+    }
+
+    /** "Wait for the next slot instead" — the answer to a catch-up warning. */
+    fun setWaitForNextSlot(wait: Boolean) {
+        _uiState.update { it.copy(waitForNextSlot = wait) }
     }
 
     fun setPostType(type: PostType) {
@@ -228,12 +272,19 @@ class ComposePostViewModel(
 
     fun save() {
         val state = _uiState.value
-        val validation = PostValidator.validate(
-            postType = state.postType,
-            mediaCount = state.media.size,
-            scheduledAtMillis = state.scheduledAtMillis,
-            nowMillis = System.currentTimeMillis(),
-        )
+        val queued = state.timingMode == TimingMode.QUEUED
+
+        // A queued post has no time of its own to validate — the planner supplies one.
+        val validation = if (queued) {
+            PostValidator.validateMedia(state.postType, state.media.size)
+        } else {
+            PostValidator.validate(
+                postType = state.postType,
+                mediaCount = state.media.size,
+                scheduledAtMillis = state.scheduledAtMillis,
+                nowMillis = System.currentTimeMillis(),
+            )
+        }
         if (validation is PostValidation.Invalid) {
             _uiState.update { it.copy(errorMessage = messageFor(validation.reason)) }
             return
@@ -242,6 +293,17 @@ class ComposePostViewModel(
         _uiState.update { it.copy(isSaving = true, errorMessage = null) }
         viewModelScope.launch {
             val now = System.currentTimeMillis()
+            val preview = state.queuePreview
+
+            // For a queued post this is only a starting value: QueueRepository.replan()
+            // overwrites it the moment the post joins the pool. It is set to the preview
+            // so the queue never flashes a nonsense date in the meantime.
+            val startingTime = when {
+                !queued -> state.scheduledAtMillis
+                state.waitForNextSlot -> preview?.nextSlotAfterMillis ?: (now + HOUR_MILLIS)
+                else -> preview?.atMillis ?: (now + HOUR_MILLIS)
+            }
+
             val entity = ScheduledPostEntity(
                 id = postId ?: 0,
                 postType = state.postType,
@@ -249,8 +311,15 @@ class ComposePostViewModel(
                 caption = state.caption.trim(),
                 hashtags = state.hashtags.trim(),
                 presetId = state.selectedPresetId,
-                scheduledAt = state.scheduledAtMillis,
+                scheduledAt = startingTime,
                 missedPolicy = state.missedPolicy,
+                timingMode = state.timingMode,
+                queuePosition = if (queued) existingQueuePosition else null,
+                notBeforeMillis = if (queued && state.waitForNextSlot) {
+                    preview?.nextSlotAfterMillis
+                } else {
+                    null
+                },
                 createdAt = if (postId != null) existingCreatedAt else now,
                 workRequestId = existingWorkRequestId,
             )
@@ -268,11 +337,21 @@ class ComposePostViewModel(
             }
 
             try {
-                if (postId != null) {
+                val savedId = if (postId != null) {
                     postRepository.updatePost(entity, media)
+                    postId
                 } else {
                     postRepository.insertPost(entity, media)
                 }
+
+                when {
+                    // A new post joins the back of the pool; an edited one keeps its place.
+                    queued && existingQueuePosition == null -> queueRepository.addToQueue(savedId)
+                    queued -> queueRepository.replan()
+                    // Switched from queued to a set time: take it out so the rest shuffle up.
+                    existingQueuePosition != null -> queueRepository.removeFromQueue(savedId)
+                }
+
                 _uiState.update { it.copy(isSaving = false, saveComplete = true) }
             } catch (e: IOException) {
                 // Most likely the picker's temporary read grant expired before save.
@@ -284,6 +363,10 @@ class ComposePostViewModel(
                 }
             }
         }
+    }
+
+    private companion object {
+        const val HOUR_MILLIS = 60L * 60L * 1000L
     }
 
     private fun messageFor(reason: PostValidation.Reason): String = when (reason) {

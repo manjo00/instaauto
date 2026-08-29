@@ -27,6 +27,7 @@ import androidx.navigation.navArgument
 import com.autoinsta.data.remote.OAuthRedirectBus
 import com.autoinsta.ui.composepost.ComposePostScreen
 import com.autoinsta.ui.home.HomeScreen
+import com.autoinsta.ui.queue.ScheduleScreen
 import com.autoinsta.ui.settings.SettingsScreen
 import com.autoinsta.ui.theme.AutoInstaTheme
 
@@ -39,6 +40,7 @@ private const val APP_REDIRECT_URI = "autoinsta://oauth"
 
 private const val ROUTE_HOME = "home"
 private const val ROUTE_SETTINGS = "settings"
+private const val ROUTE_SCHEDULE = "schedule"
 private const val ARG_POST_ID = "postId"
 private const val NO_POST_ID = -1L
 private const val ROUTE_COMPOSE_POST = "composePost?$ARG_POST_ID={$ARG_POST_ID}"
@@ -108,6 +110,7 @@ private fun AppRoot() {
                 composable(ROUTE_HOME) {
                     HomeScreen(
                         onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
+                        onOpenSchedule = { navController.navigate(ROUTE_SCHEDULE) },
                         onCreatePost = {
                             navController.navigate("composePost?$ARG_POST_ID=$NO_POST_ID")
                         },
@@ -133,7 +136,13 @@ private fun AppRoot() {
                     )
                 }
                 composable(ROUTE_SETTINGS) {
-                    SettingsScreen(onNavigateBack = { navController.popBackStack() })
+                    SettingsScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        onOpenSchedule = { navController.navigate(ROUTE_SCHEDULE) },
+                    )
+                }
+                composable(ROUTE_SCHEDULE) {
+                    ScheduleScreen(onNavigateBack = { navController.popBackStack() })
                 }
             }
         }

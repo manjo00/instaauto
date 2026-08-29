@@ -33,6 +33,24 @@ object PostValidator {
         scheduledAtMillis: Long,
         nowMillis: Long,
     ): PostValidation {
+        val media = validateMedia(postType, mediaCount)
+        if (media is PostValidation.Invalid) return media
+
+        if (scheduledAtMillis <= nowMillis) {
+            return PostValidation.Invalid(PostValidation.Reason.TIME_IN_PAST)
+        }
+        return PostValidation.Valid
+    }
+
+    /**
+     * The media rules on their own, for a **queued** post.
+     *
+     * A queued post has no time to check: it holds a place, and
+     * [com.autoinsta.domain.QueuePlanner] supplies the moment. Asking "is this time in the
+     * future" of a post that has not been given one yet has no meaningful answer, so the
+     * question is not asked rather than being answered with a fudged value.
+     */
+    fun validateMedia(postType: PostType, mediaCount: Int): PostValidation {
         if (mediaCount == 0) {
             return PostValidation.Invalid(PostValidation.Reason.NO_MEDIA)
         }
@@ -44,9 +62,6 @@ object PostValidator {
                 if (postType == PostType.CAROUSEL) PostValidation.Reason.CAROUSEL_TOO_MANY
                 else PostValidation.Reason.TOO_MANY_FOR_TYPE
             )
-        }
-        if (scheduledAtMillis <= nowMillis) {
-            return PostValidation.Invalid(PostValidation.Reason.TIME_IN_PAST)
         }
         return PostValidation.Valid
     }
