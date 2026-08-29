@@ -19,7 +19,7 @@ Last updated: 2026-08-29
 | 4 — Account connect | Instagram login via Custom Tabs; 60-day token, auto-renewed | 59 unit + 28 instrumented on the Fold 7; **connected to the real account**, token encrypted, weekly renewal job verified in `dumpsys jobscheduler` |
 | 5a — Real publishing | Cloudinary upload + Graph API publish; image / Reel / carousel | 107 unit + 31 instrumented; **a real post reached the live account**; PNG→JPEG and 9:16→4:5 fitting proven against live Cloudinary |
 | 5b — Fitting editor | Per-image preview, manual crop against Instagram's frame, pad/crop choice | 119 unit + 33 instrumented; schema v3 with migration tests |
-| 5c — Posting queue | Recurring slots + an ordered pool; drag to reorder, catch-up window, pause | 163 unit + 38 instrumented; schema v4 with migration tests |
+| 5c — Posting queue | Recurring slots + an ordered pool; drag to reorder, catch-up window, pause | 162 unit green, lint 0 errors; **42 instrumented written but not yet run — no device attached** |
 
 ## In flight
 
@@ -29,8 +29,14 @@ Last updated: 2026-08-29
 a pool and take the next free slot. An empty pool means the day is simply skipped — no
 post, no alarm, nothing fires. Drag to reorder, pause, and a configurable catch-up window
 that keeps a just-missed slot open for a post the phone could not publish *or* one added
-afterwards. **Not yet used against a real week of posting** — that is the open
-verification, alongside the fitting editor.
+afterwards.
+
+**What is proven:** 162 unit tests (the planner, including both daylight-saving edges),
+a clean `assembleDebug`, and lint with 0 errors.
+**What is not:** no device was attached, so the 9 new instrumented tests — the v3→v4
+migration, the four queued-post worker cases, and the drag gesture — have **never been
+run**, and the build has not been installed. Nothing in the queue has been touched by
+hand. Both are the first things to do next.
 
 Two things built but never surfaced: `post_history` is written on every publish and has no
 screen, and hashtag presets have a table and repository but no way to create one — so the
