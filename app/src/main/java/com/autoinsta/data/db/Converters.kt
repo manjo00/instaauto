@@ -6,6 +6,7 @@ import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.MissedPostPolicy
 import com.autoinsta.domain.model.PostStatus
 import com.autoinsta.domain.model.PostType
+import com.autoinsta.domain.model.TimingMode
 
 /**
  * Converts Kotlin enums to/from their String name for SQLite storage.
@@ -24,6 +25,9 @@ class Converters {
 
     @TypeConverter fun missedPolicyToString(v: MissedPostPolicy): String = v.name
     @TypeConverter fun stringToMissedPolicy(v: String): MissedPostPolicy = MissedPostPolicy.valueOf(v)
+
+    @TypeConverter fun timingModeToString(v: TimingMode): String = v.name
+    @TypeConverter fun stringToTimingMode(v: String): TimingMode = TimingMode.valueOf(v)
 
     @TypeConverter fun fitModeToString(v: MediaFit.Mode): String = v.name
     @TypeConverter fun stringToFitMode(v: String): MediaFit.Mode = MediaFit.Mode.valueOf(v)

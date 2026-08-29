@@ -5,6 +5,7 @@ import androidx.room.PrimaryKey
 import com.autoinsta.domain.model.MissedPostPolicy
 import com.autoinsta.domain.model.PostStatus
 import com.autoinsta.domain.model.PostType
+import com.autoinsta.domain.model.TimingMode
 
 /**
  * One scheduled (or historical) Instagram post.
@@ -34,8 +35,39 @@ data class ScheduledPostEntity(
      */
     val presetId: Long?,
 
-    /** When to publish — stored as epoch milliseconds (UTC). */
+    /**
+     * When to publish — epoch milliseconds (UTC).
+     *
+     * For a [TimingMode.FIXED] post this is the owner's own choice and nothing moves it.
+     * For a [TimingMode.QUEUED] post it is **derived** by [com.autoinsta.domain.QueuePlanner]
+     * from [queuePosition] and the posting schedule, and is rewritten on every replan.
+     * Read it to arm an alarm or to show a date; never treat it as the queue's order.
+     */
     val scheduledAt: Long,
+
+    /**
+     * Whether this post owns its time or takes the next free slot. Added in schema v4;
+     * everything that existed before the queue is [TimingMode.FIXED], which is exactly
+     * how it already behaved.
+     */
+    val timingMode: TimingMode = TimingMode.FIXED,
+
+    /**
+     * Place in the pool, 0-based. **This is the truth for a queued post's order** —
+     * [scheduledAt] is only its consequence.
+     *
+     * Null for a fixed post, and for a queued post that has left the pool by publishing
+     * or failing.
+     */
+    val queuePosition: Int? = null,
+
+    /**
+     * The earliest slot this post will accept, epoch millis.
+     *
+     * Set when the owner is warned that adding a post would fill a slot that just passed
+     * and answers "wait for the next slot instead". Null the rest of the time.
+     */
+    val notBeforeMillis: Long? = null,
 
     /**
      * What to do if this post's time passes while the device is off or unable to fire.

@@ -47,5 +47,58 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+/**
+ * v3 → v4: the posting queue.
+ *
+ * Posts gain a timing mode, a place in the pool, and an optional "not before" hold.
+ * `DEFAULT 'FIXED'` is the important part — every post that existed before the queue
+ * owns its own time, which is exactly how it already behaved, so an upgrade changes
+ * nothing for anyone mid-schedule.
+ *
+ * The settings row is seeded here rather than left to the first write, so the queue has
+ * a defined shape (2-hour catch-up, not paused) from the moment the app opens.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE scheduled_posts ADD COLUMN timingMode TEXT NOT NULL DEFAULT 'FIXED'"
+        )
+        db.execSQL("ALTER TABLE scheduled_posts ADD COLUMN queuePosition INTEGER")
+        db.execSQL("ALTER TABLE scheduled_posts ADD COLUMN notBeforeMillis INTEGER")
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `posting_slots` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `dayOfWeek` INTEGER NOT NULL,
+                `hourOfDay` INTEGER NOT NULL,
+                `minute` INTEGER NOT NULL,
+                `enabled` INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `queue_settings` (
+                `id` INTEGER NOT NULL,
+                `catchUpWindowMinutes` INTEGER NOT NULL,
+                `paused` INTEGER NOT NULL,
+                `resumedAtMillis` INTEGER NOT NULL,
+                PRIMARY KEY(`id`)
+            )
+            """.trimIndent()
+        )
+
+        db.execSQL(
+            "INSERT OR IGNORE INTO queue_settings " +
+                "(id, catchUpWindowMinutes, paused, resumedAtMillis) VALUES (1, 120, 0, 0)"
+        )
+
+        // No slots are seeded. An empty schedule means the queue is simply inert, which
+        // is the right state for someone who has not opted into it yet.
+    }
+}
+
 /** Every migration, in order. Passed to the Room builder. */
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)

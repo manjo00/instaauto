@@ -9,11 +9,15 @@ import com.autoinsta.data.db.dao.AccountDao
 import com.autoinsta.data.db.dao.HashtagPresetDao
 import com.autoinsta.data.db.dao.MediaItemDao
 import com.autoinsta.data.db.dao.PostHistoryDao
+import com.autoinsta.data.db.dao.PostingSlotDao
+import com.autoinsta.data.db.dao.QueueSettingsDao
 import com.autoinsta.data.db.dao.ScheduledPostDao
 import com.autoinsta.data.db.entities.AccountEntity
 import com.autoinsta.data.db.entities.HashtagPresetEntity
 import com.autoinsta.data.db.entities.MediaItemEntity
 import com.autoinsta.data.db.entities.PostHistoryEntity
+import com.autoinsta.data.db.entities.PostingSlotEntity
+import com.autoinsta.data.db.entities.QueueSettingsEntity
 import com.autoinsta.data.db.entities.ScheduledPostEntity
 
 @Database(
@@ -23,8 +27,10 @@ import com.autoinsta.data.db.entities.ScheduledPostEntity
         HashtagPresetEntity::class,
         PostHistoryEntity::class,
         AccountEntity::class,
+        PostingSlotEntity::class,
+        QueueSettingsEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -35,6 +41,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun hashtagPresetDao(): HashtagPresetDao
     abstract fun postHistoryDao(): PostHistoryDao
     abstract fun accountDao(): AccountDao
+    abstract fun postingSlotDao(): PostingSlotDao
+    abstract fun queueSettingsDao(): QueueSettingsDao
 
     companion object {
         private const val DB_NAME = "autoinsta.db"

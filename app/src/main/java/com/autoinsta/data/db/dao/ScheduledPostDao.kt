@@ -70,4 +70,69 @@ interface ScheduledPostDao {
     @Transaction
     @Query("SELECT * FROM scheduled_posts WHERE status = 'SCHEDULED'")
     suspend fun getAllScheduled(): List<ScheduledPostWithMedia>
+
+    // ── The queue ──────────────────────────────────────────────────────────
+    // Ordered by queuePosition, never by scheduledAt: position is the truth, and the
+    // time is only what the planner made of it.
+
+    @Transaction
+    @Query("""
+        SELECT * FROM scheduled_posts
+        WHERE status = 'SCHEDULED' AND timingMode = 'QUEUED'
+        ORDER BY queuePosition ASC
+    """)
+    fun observeQueued(): Flow<List<ScheduledPostWithMedia>>
+
+    @Query("""
+        SELECT id FROM scheduled_posts
+        WHERE status = 'SCHEDULED' AND timingMode = 'QUEUED'
+        ORDER BY queuePosition ASC
+    """)
+    suspend fun getQueuedIdsInOrder(): List<Long>
+
+    /** Posts the owner pinned to a time, so the planner can stay out of their way. */
+    @Query("""
+        SELECT scheduledAt FROM scheduled_posts
+        WHERE status = 'SCHEDULED' AND timingMode = 'FIXED'
+    """)
+    suspend fun getFixedScheduledTimes(): List<Long>
+
+    /** Posts with a fixed time — the second section of the queue screen. */
+    @Transaction
+    @Query("""
+        SELECT * FROM scheduled_posts
+        WHERE status = 'SCHEDULED' AND timingMode = 'FIXED'
+        ORDER BY scheduledAt ASC
+    """)
+    fun observeFixedScheduled(): Flow<List<ScheduledPostWithMedia>>
+
+    /** Null when the queue is empty — the first post then takes position 0. */
+    @Query("""
+        SELECT MAX(queuePosition) FROM scheduled_posts
+        WHERE status = 'SCHEDULED' AND timingMode = 'QUEUED'
+    """)
+    suspend fun maxQueuePosition(): Int?
+
+    @Query("UPDATE scheduled_posts SET queuePosition = :position WHERE id = :postId")
+    suspend fun updateQueuePosition(postId: Long, position: Int?)
+
+    @Query("UPDATE scheduled_posts SET scheduledAt = :atMillis WHERE id = :postId")
+    suspend fun updateScheduledAt(postId: Long, atMillis: Long)
+
+    @Query("SELECT id, notBeforeMillis FROM scheduled_posts WHERE notBeforeMillis IS NOT NULL")
+    suspend fun getNotBeforeHolds(): List<NotBeforeHold>
+
+    /**
+     * Take a post out of the pool without deleting it — it has published, or failed
+     * permanently. Its [ScheduledPostEntity.timingMode] stays QUEUED so history still
+     * shows how it was scheduled.
+     */
+    @Query("UPDATE scheduled_posts SET queuePosition = NULL WHERE id = :postId")
+    suspend fun clearQueuePosition(postId: Long)
 }
+
+/** Row shape for [ScheduledPostDao.getNotBeforeHolds]. */
+data class NotBeforeHold(
+    val id: Long,
+    val notBeforeMillis: Long,
+)
