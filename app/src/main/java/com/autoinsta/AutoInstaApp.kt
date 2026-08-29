@@ -10,12 +10,14 @@ import com.autoinsta.data.repository.HistoryRepository
 import com.autoinsta.data.repository.PostRepository
 import com.autoinsta.data.repository.PresetRepository
 import com.autoinsta.data.repository.PublishRepository
+import com.autoinsta.data.repository.QueueRepository
 import com.autoinsta.scheduler.Notifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import com.autoinsta.scheduler.PostScheduler
+import com.autoinsta.scheduler.QueueMaintenanceWorker
 import com.autoinsta.scheduler.TokenRefreshWorker
 
 /**
@@ -43,6 +45,19 @@ class AutoInstaApp : Application() {
             postDao = database.scheduledPostDao(),
             mediaDao = database.mediaItemDao(),
             mediaFileStore = mediaFileStore,
+            postScheduler = postScheduler,
+        )
+    }
+
+    /**
+     * The pool of posts waiting their turn, and the schedule that empties it.
+     * The only thing allowed to set a queued post's time.
+     */
+    val queueRepository: QueueRepository by lazy {
+        QueueRepository(
+            postDao = database.scheduledPostDao(),
+            slotDao = database.postingSlotDao(),
+            settingsDao = database.queueSettingsDao(),
             postScheduler = postScheduler,
         )
     }
@@ -98,6 +113,12 @@ class AutoInstaApp : Application() {
         //   2. a weekly background job — covers the person who does not
         applicationScope.launch { accountRepository.refreshIfNeeded() }
         TokenRefreshWorker.schedule(this)
+
+        // The queue's plan goes stale on its own: slots pass, catch-up windows close,
+        // and posts come inside the alarm horizon. Replanning on launch covers the
+        // person who opens the app; the daily job covers the one who does not.
+        applicationScope.launch { queueRepository.replan() }
+        QueueMaintenanceWorker.schedule(this)
     }
 
     /** Lives as long as the process — for work that must not die with a screen. */

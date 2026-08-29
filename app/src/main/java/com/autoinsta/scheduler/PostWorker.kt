@@ -9,9 +9,13 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.autoinsta.AutoInstaApp
 import com.autoinsta.data.db.entities.PostHistoryEntity
+import com.autoinsta.data.db.relations.ScheduledPostWithMedia
 import com.autoinsta.data.repository.PublishResult
+import com.autoinsta.domain.QueuePlanner
 import com.autoinsta.domain.ScheduleCalculator
+import com.autoinsta.domain.model.MissedPostPolicy
 import com.autoinsta.domain.model.PostStatus
+import com.autoinsta.domain.model.TimingMode
 import java.io.File
 
 /**
@@ -47,21 +51,15 @@ class PostWorker(
 
         // Re-check the decision at execution time. The alarm may have fired late, or the
         // device may have been off for days and this is the boot catch-up.
-        val action = ScheduleCalculator.actionFor(
-            scheduledAtMillis = post.post.scheduledAt,
-            policy = post.post.missedPolicy,
-            nowMillis = System.currentTimeMillis(),
-        )
-        when (action) {
-            is ScheduleCalculator.Action.WaitUntil -> return Result.success() // too early; alarm stands
-            ScheduleCalculator.Action.AskUser -> return Result.success()      // queue shows it, user decides
-            ScheduleCalculator.Action.MarkMissed -> {
-                fail(postId, post.post.caption, "Missed its time by more than the grace period.")
-                notifier.notifyFailed(postId, post.post.caption, "Too late to post automatically")
-                return Result.success()
-            }
-            ScheduleCalculator.Action.PublishNow -> Unit // fall through
+        //
+        // The two timing modes disagree about exactly one thing: what "too late" means.
+        // A fixed post can be missed, because its time was the point. A queued post never
+        // is — it simply takes the next slot.
+        val proceed = when (post.post.timingMode) {
+            TimingMode.FIXED -> shouldPublishFixed(post)
+            TimingMode.QUEUED -> shouldPublishQueued(post)
         }
+        if (!proceed) return Result.success()
 
         repository.updateStatus(postId, PostStatus.POSTING)
 
@@ -76,6 +74,7 @@ class PostWorker(
             val reason = "${missing.size} media file(s) are missing from storage."
             fail(postId, post.post.caption, reason)
             notifier.notifyFailed(postId, post.post.caption, reason)
+            leaveQueueIfQueued(post)
             return Result.success()
         }
 
@@ -96,6 +95,7 @@ class PostWorker(
                     )
                 )
                 notifier.notifyPosted(postId, post.post.caption, post.mediaItems.size)
+                leaveQueueIfQueued(post)
                 Result.success()
             }
 
@@ -106,6 +106,7 @@ class PostWorker(
                 if (runAttemptCount >= MAX_RETRIES) {
                     fail(postId, post.post.caption, result.reason)
                     notifier.notifyFailed(postId, post.post.caption, result.reason)
+                    leaveQueueIfQueued(post)
                     Result.failure()
                 } else {
                     // WorkManager backs off exponentially between attempts.
@@ -116,9 +117,75 @@ class PostWorker(
             is PublishResult.PermanentFailure -> {
                 fail(postId, post.post.caption, result.reason)
                 notifier.notifyFailed(postId, post.post.caption, result.reason)
+                leaveQueueIfQueued(post)
                 Result.failure()
             }
         }
+    }
+
+    /**
+     * A fixed-time post: the owner chose that moment, so being far too late is a real
+     * failure and is recorded as one, per the post's own [MissedPostPolicy].
+     */
+    private suspend fun shouldPublishFixed(post: ScheduledPostWithMedia): Boolean {
+        val app = applicationContext as AutoInstaApp
+        val postId = post.post.id
+        val action = ScheduleCalculator.actionFor(
+            scheduledAtMillis = post.post.scheduledAt,
+            policy = post.post.missedPolicy,
+            nowMillis = System.currentTimeMillis(),
+        )
+        return when (action) {
+            is ScheduleCalculator.Action.WaitUntil -> false // too early; the alarm stands
+            ScheduleCalculator.Action.AskUser -> false      // the queue shows it; the owner decides
+            ScheduleCalculator.Action.MarkMissed -> {
+                fail(postId, post.post.caption, "Missed its time by more than the grace period.")
+                app.notifier.notifyFailed(postId, post.post.caption, "Too late to post automatically")
+                false
+            }
+            ScheduleCalculator.Action.PublishNow -> true
+        }
+    }
+
+    /**
+     * A queued post: it holds a place, not an appointment.
+     *
+     * Past its catch-up window it is **not** failed — it keeps its position and the
+     * planner hands it the next slot. Marking it FAILED would punish the owner for the
+     * phone having been off, and quietly drop a finished piece out of the rotation.
+     */
+    private suspend fun shouldPublishQueued(post: ScheduledPostWithMedia): Boolean {
+        val app = applicationContext as AutoInstaApp
+        val queue = app.queueRepository
+
+        // An alarm armed before the owner hit pause can still be in flight.
+        if (queue.settings().paused) {
+            queue.replan()
+            return false
+        }
+
+        val action = QueuePlanner.actionForQueued(
+            scheduledAtMillis = post.post.scheduledAt,
+            nowMillis = System.currentTimeMillis(),
+            catchUpWindowMillis = queue.catchUpWindowMillis(),
+        )
+        return when (action) {
+            is QueuePlanner.QueuedAction.WaitUntil -> false
+            QueuePlanner.QueuedAction.RollForward -> {
+                queue.replan()
+                false
+            }
+            QueuePlanner.QueuedAction.PublishNow -> true
+        }
+    }
+
+    /**
+     * Take a finished post out of the pool so everything behind it shuffles up.
+     * A no-op for a fixed post, which was never in the pool.
+     */
+    private suspend fun leaveQueueIfQueued(post: ScheduledPostWithMedia) {
+        if (post.post.timingMode != TimingMode.QUEUED) return
+        (applicationContext as AutoInstaApp).queueRepository.removeFromQueue(post.post.id)
     }
 
     private suspend fun fail(postId: Long, caption: String, reason: String) {

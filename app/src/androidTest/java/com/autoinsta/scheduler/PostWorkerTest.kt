@@ -17,7 +17,10 @@ import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.MissedPostPolicy
 import com.autoinsta.domain.model.PostStatus
 import com.autoinsta.domain.model.PostType
+import com.autoinsta.domain.model.TimingMode
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import java.time.DayOfWeek
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -49,6 +52,9 @@ class PostWorkerTest {
     private lateinit var app: AutoInstaApp
     private lateinit var sourceDir: File
     private val createdPostIds = mutableListOf<Long>()
+    private val createdSlotIds = mutableListOf<Long>()
+    private var savedWindowMinutes = 120
+    private var savedPaused = false
 
     private val HOUR = 60L * 60L * 1000L
 
@@ -81,6 +87,14 @@ class PostWorkerTest {
         sourceDir = File(context.cacheDir, "worker-test").apply { mkdirs() }
         // Default: publishing "succeeds" without going anywhere near Instagram.
         publisherReturning(PublishResult.Success(FAKE_MEDIA_ID))
+
+        // This runs against the real database, so the owner's own posting schedule has
+        // to be put back exactly as it was — see tearDown.
+        runBlocking {
+            val settings = app.queueRepository.settings()
+            savedWindowMinutes = settings.catchUpWindowMinutes
+            savedPaused = settings.paused
+        }
     }
 
     @After
@@ -88,6 +102,10 @@ class PostWorkerTest {
         app.publishRepositoryOverride = null
         createdPostIds.forEach { app.postRepository.deletePost(it) }
         createdPostIds.clear()
+        createdSlotIds.forEach { app.queueRepository.deleteSlot(it) }
+        createdSlotIds.clear()
+        app.queueRepository.setCatchUpWindow(savedWindowMinutes)
+        app.queueRepository.setPaused(savedPaused)
         sourceDir.deleteRecursively()
     }
 
@@ -129,6 +147,30 @@ class PostWorkerTest {
             .doWork()
 
     private suspend fun statusOf(postId: Long) = app.postRepository.getById(postId)?.post?.status
+
+    private suspend fun postAt(postId: Long) = app.postRepository.getById(postId)?.post
+
+    /**
+     * A post sitting in the pool with [scheduledAt] as the time the planner last gave it.
+     * Written straight through [PostRepository.updatePost] so the test controls the time
+     * rather than racing a replan for it.
+     */
+    private suspend fun givenQueuedPost(scheduledAt: Long): Long {
+        val id = givenPost(scheduledAt = scheduledAt)
+        app.postRepository.updatePost(
+            app.postRepository.getById(id)!!.post.copy(
+                timingMode = TimingMode.QUEUED,
+                queuePosition = 0,
+                scheduledAt = scheduledAt,
+            )
+        )
+        return id
+    }
+
+    /** One slot, so the planner has somewhere to roll a post forward to. */
+    private suspend fun givenASlot(day: DayOfWeek = DayOfWeek.WEDNESDAY, hour: Int = 19) {
+        createdSlotIds += app.queueRepository.addSlot(day, hour, 0)
+    }
 
     // ── What the worker does with each publish outcome ─────────────────────
 
@@ -314,6 +356,81 @@ class PostWorkerTest {
 
             assertNotEquals("stuck in POSTING after $outcome", PostStatus.POSTING, statusOf(id))
         }
+    }
+
+    // ── Queued posts hold a place, not an appointment ──────────────────────
+
+    @Test
+    fun aQueuedPostPastItsWindowRollsForwardInsteadOfFailing() = runTest {
+        app.queueRepository.setCatchUpWindow(60)
+        givenASlot()
+        val publisher = publisherReturning(PublishResult.Success(FAKE_MEDIA_ID))
+        val missedBy = 2 * HOUR
+        val id = givenQueuedPost(scheduledAt = System.currentTimeMillis() - missedBy)
+
+        val result = runWorkerFor(id)
+
+        assertEquals(ListenableWorker.Result.success(), result)
+        assertEquals("nothing should have been published", 0, publisher.callCount)
+        assertEquals(
+            "a queued post is never failed for being late",
+            PostStatus.SCHEDULED,
+            statusOf(id),
+        )
+        assertTrue(
+            "it should have been given a new time in the future",
+            postAt(id)!!.scheduledAt > System.currentTimeMillis(),
+        )
+        assertEquals("and should have kept its place", 0, postAt(id)!!.queuePosition)
+    }
+
+    @Test
+    fun aQueuedPostInsideItsWindowPublishesAndLeavesThePool() = runTest {
+        app.queueRepository.setCatchUpWindow(120)
+        givenASlot()
+        val publisher = publisherReturning(PublishResult.Success(FAKE_MEDIA_ID))
+        val id = givenQueuedPost(scheduledAt = System.currentTimeMillis() - 10 * 60L * 1000L)
+
+        runWorkerFor(id)
+
+        assertEquals(1, publisher.callCount)
+        assertEquals(PostStatus.POSTED, statusOf(id))
+        assertEquals(
+            "a published post must leave the pool so the rest shuffle up",
+            null,
+            postAt(id)!!.queuePosition,
+        )
+    }
+
+    @Test
+    fun aPausedQueuePublishesNothingEvenIfAnAlarmIsAlreadyInFlight() = runTest {
+        app.queueRepository.setCatchUpWindow(120)
+        givenASlot()
+        val publisher = publisherReturning(PublishResult.Success(FAKE_MEDIA_ID))
+        val id = givenQueuedPost(scheduledAt = System.currentTimeMillis() - 60L * 1000L)
+        app.queueRepository.setPaused(true)
+
+        runWorkerFor(id)
+
+        assertEquals("pause has to hold even for an alarm already armed", 0, publisher.callCount)
+        assertEquals(PostStatus.SCHEDULED, statusOf(id))
+    }
+
+    @Test
+    fun aQueuedPostThatFailsPermanentlyLeavesThePool() = runTest {
+        app.queueRepository.setCatchUpWindow(120)
+        givenASlot()
+        publisherReturning(PublishResult.PermanentFailure("Instagram said no"))
+        val id = givenQueuedPost(scheduledAt = System.currentTimeMillis() - 1000L)
+
+        runWorkerFor(id)
+
+        assertEquals(PostStatus.FAILED, statusOf(id))
+        assertEquals(
+            "otherwise a rejected post would block the slot forever",
+            null,
+            postAt(id)!!.queuePosition,
+        )
     }
 
     private companion object {

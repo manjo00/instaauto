@@ -10,6 +10,7 @@ import com.autoinsta.data.media.MediaFileStore
 import com.autoinsta.scheduler.PostScheduler
 import com.autoinsta.domain.MediaFit
 import com.autoinsta.domain.model.MediaType
+import com.autoinsta.domain.model.TimingMode
 import kotlinx.coroutines.flow.Flow
 import com.autoinsta.domain.model.PostStatus
 
@@ -81,7 +82,9 @@ class PostRepository(
     ): Long {
         val postId = postDao.insert(post)
         mediaDao.insertAll(importAll(media, postId))
-        postScheduler.schedule(postId, post.scheduledAt)
+        // A queued post has no time of its own yet — QueueRepository.replan() derives it
+        // and arms the alarm. Arming one here would briefly point at a placeholder.
+        if (post.timingMode == TimingMode.FIXED) postScheduler.schedule(postId, post.scheduledAt)
         return postId
     }
 
@@ -110,7 +113,8 @@ class PostRepository(
 
         // The time may have moved; re-arming replaces the old alarm rather than
         // stacking a second one (the PendingIntent is keyed on the post id).
-        postScheduler.schedule(post.id, post.scheduledAt)
+        // Queued posts are the planner's business, not this one's.
+        if (post.timingMode == TimingMode.FIXED) postScheduler.schedule(post.id, post.scheduledAt)
     }
 
     /** Stamp a media item's Cloudinary URL once it has been uploaded. */

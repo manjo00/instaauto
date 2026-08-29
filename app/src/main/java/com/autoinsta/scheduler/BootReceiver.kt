@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import com.autoinsta.AutoInstaApp
 import com.autoinsta.domain.ScheduleCalculator
+import com.autoinsta.domain.model.TimingMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -17,8 +18,9 @@ import kotlinx.coroutines.launch
  * would look wrong. That is the worst kind of failure for a scheduling app.
  *
  * Each pending post is re-evaluated rather than blindly re-armed, because time passed
- * while the device was off. [ScheduleCalculator] decides per post, honouring the
- * per-post missed-post rule.
+ * while the device was off. Queued posts go through the planner, which re-derives their
+ * times and grants at most one catch-up; fixed-time posts go through [ScheduleCalculator],
+ * honouring their own per-post missed rule.
  */
 class BootReceiver : BroadcastReceiver() {
 
@@ -33,21 +35,29 @@ class BootReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val now = System.currentTimeMillis()
-                app.postRepository.getAllScheduled().forEach { item ->
-                    when (ScheduleCalculator.actionFor(item.post.scheduledAt, item.post.missedPolicy, now)) {
-                        is ScheduleCalculator.Action.WaitUntil ->
-                            app.postScheduler.schedule(item.post.id, item.post.scheduledAt, now)
 
-                        ScheduleCalculator.Action.PublishNow ->
-                            PostWorker.enqueue(context.applicationContext, item.post.id)
+                // The queue re-derives its own times and arms its own alarms, including
+                // the one catch-up a phone that was off overnight is entitled to. Doing
+                // it first means the fixed-post pass below sees the times it settled on.
+                app.queueRepository.replan()
 
-                        // Both of these need the worker to record the outcome (mark
-                        // FAILED / leave for the user) rather than being dropped here.
-                        ScheduleCalculator.Action.MarkMissed,
-                        ScheduleCalculator.Action.AskUser ->
-                            PostWorker.enqueue(context.applicationContext, item.post.id)
+                app.postRepository.getAllScheduled()
+                    .filter { it.post.timingMode == TimingMode.FIXED }
+                    .forEach { item ->
+                        when (ScheduleCalculator.actionFor(item.post.scheduledAt, item.post.missedPolicy, now)) {
+                            is ScheduleCalculator.Action.WaitUntil ->
+                                app.postScheduler.schedule(item.post.id, item.post.scheduledAt, now)
+
+                            ScheduleCalculator.Action.PublishNow ->
+                                PostWorker.enqueue(context.applicationContext, item.post.id)
+
+                            // Both of these need the worker to record the outcome (mark
+                            // FAILED / leave for the user) rather than being dropped here.
+                            ScheduleCalculator.Action.MarkMissed,
+                            ScheduleCalculator.Action.AskUser ->
+                                PostWorker.enqueue(context.applicationContext, item.post.id)
+                        }
                     }
-                }
             } finally {
                 pending.finish()
             }
