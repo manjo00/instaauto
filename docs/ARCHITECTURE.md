@@ -26,12 +26,13 @@ free host (Cloudinary unsigned preset) to get the public URL the API requires.
 ## Package layout (`com.autoinsta`)
 ```
 data/
-  db/        Room: entities (ScheduledPost, MediaItem, HashtagPreset, PostHistory, Account) + DAOs + AppDatabase
+  db/        Room: entities (ScheduledPost, MediaItem, HashtagPreset, PostHistory,
+             Account, PostingSlot, QueueSettings) + DAOs + AppDatabase
   media/     MediaFileStore  — copies picked media into app-private storage  ✅
   remote/    InstagramAuthApi · InstagramApi · CloudinaryUploader
              NetworkModule · OAuthRedirectBus · dto/                            ✅
   repository/ PostRepository · PresetRepository · AccountRepository
-             HistoryRepository · PublishRepository                              ✅
+             HistoryRepository · PublishRepository · QueueRepository            ✅
   prefs/     TokenStore (EncryptedSharedPreferences)                            ✅
 domain/
   model/     PostType (SINGLE_IMAGE | REEL | CAROUSEL), PostStatus, MediaType
@@ -40,6 +41,8 @@ domain/
   TokenLifecycle.kt     when the Instagram login needs refreshing                 ✅
   MediaFit.kt           which shapes Instagram accepts, and how to fix them       ✅
   PublishPolicy.kt      polling cadence, quota, caption limits                    ✅
+  QueuePlanner.kt       slots + pool order -> real publish times                  ✅
+  DragReorder.kt        the index maths behind the reorder gesture                ✅
 scheduler/                                                                      ✅
   PostScheduler   arms/cancels exact alarms; reports whether exact timing is allowed
   AlarmReceiver   receives the alarm, immediately hands off to the worker
@@ -47,10 +50,12 @@ scheduler/                                                                      
   BootReceiver    re-arms pending posts after reboot, applying each post's missed rule
   Notifier        success/failure notifications
   TokenRefreshWorker  weekly job that stops the Instagram login lapsing
+  QueueMaintenanceWorker  daily replan — covers a pool left empty for weeks
 ui/
   theme/  home/  composepost/  components/    ✅ built
   settings/                                  ✅ account connect
   composepost/ + MediaFitEditor              ✅ compose a post, fit each image
+  queue/   ScheduleScreen + QueueFormat      ✅ slots, pause, catch-up window
   presets/  history/  manual/                ⏳ planned (Phase 6)
 AutoInstaApp.kt   Application (DB + WorkManager init)
 MainActivity.kt   single-activity, Compose NavHost
@@ -81,6 +86,29 @@ stored file, `MediaFit` produces a Cloudinary **delivery transformation** that i
 to the URL handed to Instagram. The original stays exactly as exported, and the fit is
 reversible and changeable without re-uploading. Per-item choice (pad / crop / as-is) plus
 a crop offset live on `media_items`; the editor is `ui/composepost/MediaFitEditor.kt`.
+
+## The posting queue — position is the truth, time is the consequence
+A post is timed one of two ways (`TimingMode`). A **FIXED** post owns its `scheduledAt`
+and nothing moves it. A **QUEUED** post owns a `queuePosition`; its `scheduledAt` is
+**derived** by the pure `QueuePlanner` from the posting schedule and rewritten on every
+`QueueRepository.replan()`.
+
+That split is the whole design. Because a queued post still ends up with a real
+`scheduledAt`, the existing alarm → worker → publish chain is untouched — and "skip the
+day when the pool is empty" costs nothing: no post means no assignment, no alarm, nothing
+fires. There is no "empty slot" object anywhere.
+
+**Only `QueueRepository` may write a queued post's time**, behind a `Mutex` because
+`replan()` is triggered from six places: app launch, any queue edit, a schedule change, a
+finished publish, device boot, and `QueueMaintenanceWorker` (daily — the one gap the
+others miss is a pool left empty for weeks, where nothing publishes so nothing replans).
+
+Alarms are armed only for assignments inside 7 days, plus always the first. A post two
+months out has a date on screen and no alarm until a later replan brings it into range.
+
+`PostWorker` branches on `timingMode` for exactly one question — what "too late" means.
+A fixed post can be MISSED. A queued post never is: past its catch-up window it rolls
+forward, keeps its place, and is given the next slot.
 
 ## The publishing pipeline (the heart of the app)
 Runs inside `PostWorker` when the scheduled time fires:

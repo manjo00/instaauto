@@ -15,6 +15,8 @@ Target user: a **digital-art Instagram account** (Creator account).
 - Three post types: **single image/video post**, **Reel**, **carousel / multi-post** (2–10 items).
 - **Hashtag presets** — saved, pre-written hashtag sets reusable per post.
 - A **queue** screen: upcoming scheduled posts + a **history** of what already posted.
+- A **posting schedule**: recurring day+time slots that an ordered pool of posts fills,
+  so a finished piece can be added without choosing a date. *(Added 2026-08-29.)*
 - Edit / delete a scheduled post before it fires.
 - Connect Instagram (Creator) account via Business Login for Instagram; auto-refresh token.
 - Reliable-as-possible on-device firing (exact alarm + WorkManager + reschedule on reboot).
@@ -73,6 +75,13 @@ per-image preview, manual crop against a guide showing the accepted frame, and a
 pad-or-crop choice per item. Note Meta crops every carousel image to match the **first**
 item, so the target ratio is shared — the editor must surface that rather than let the
 owner set something Instagram will override.
+
+### ✅ Phase 5c — Posting queue (added 2026-08-29)
+Recurring **posting slots** (a flat list of day+time) plus an ordered **pool**. Each slot
+takes the next post; an empty pool means the day is skipped. Drag to reorder, pause, and a
+configurable **catch-up window** that keeps a just-missed slot open — for a post the phone
+could not publish *or* one added afterwards. Fixed-time posts still work alongside.
+Design: `docs/specs/2026-08-29-posting-queue-design.md`.
 
 ### Phase 6 — Polish + hardening
 Retry/backoff tuning, edge cases (token expired mid-post, network loss, Doze),
@@ -134,4 +143,4 @@ prerequisite for Phases 4 and 5.
 
 ---
 
-*Last updated: 2026-08-26. Update when scope or a locked decision changes.*
+*Last updated: 2026-08-29. Update when scope or a locked decision changes.*

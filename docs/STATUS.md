@@ -3,7 +3,7 @@
 **Living document.** What's shipped, what's in flight, and every gotcha that cost us
 time — recorded with its *root cause*, so it never has to be rediscovered.
 
-Last updated: 2026-08-21
+Last updated: 2026-08-29
 
 ---
 
@@ -19,10 +19,18 @@ Last updated: 2026-08-21
 | 4 — Account connect | Instagram login via Custom Tabs; 60-day token, auto-renewed | 59 unit + 28 instrumented on the Fold 7; **connected to the real account**, token encrypted, weekly renewal job verified in `dumpsys jobscheduler` |
 | 5a — Real publishing | Cloudinary upload + Graph API publish; image / Reel / carousel | 107 unit + 31 instrumented; **a real post reached the live account**; PNG→JPEG and 9:16→4:5 fitting proven against live Cloudinary |
 | 5b — Fitting editor | Per-image preview, manual crop against Instagram's frame, pad/crop choice | 119 unit + 33 instrumented; schema v3 with migration tests |
+| 5c — Posting queue | Recurring slots + an ordered pool; drag to reorder, catch-up window, pause | 163 unit + 38 instrumented; schema v4 with migration tests |
 
 ## In flight
 
 **Phase 6 — polish, presets + history screens, in-app manual.** Not started.
+
+**Phase 5c shipped the posting queue.** Set the days and times once; finished pieces join
+a pool and take the next free slot. An empty pool means the day is simply skipped — no
+post, no alarm, nothing fires. Drag to reorder, pause, and a configurable catch-up window
+that keeps a just-missed slot open for a post the phone could not publish *or* one added
+afterwards. **Not yet used against a real week of posting** — that is the open
+verification, alongside the fitting editor.
 
 Two things built but never surfaced: `post_history` is written on every publish and has no
 screen, and hashtag presets have a table and repository but no way to create one — so the
@@ -34,7 +42,7 @@ live account on 2026-08-26.
 
 5b added control over *shape*: tap any thumbnail for a full-screen preview with
 Instagram's frame drawn over the artwork, choose Fit (bars) or Crop, and drag to pick what
-survives. **Not yet tried on real artwork by the owner** — that is the open verification.
+survives. **Not yet tried on real artwork by the owner** — that is still open.
 
 ## Not built yet
 
@@ -243,6 +251,34 @@ Cost a full failed build each. All three are import problems, not logic problems
 
 ---
 
+### 🟡 Two fields that both look like "when"
+
+**The trap:** a queued post has a `queuePosition` *and* a `scheduledAt`. Only the first is
+the truth. `scheduledAt` is **derived** by `QueuePlanner` on every replan and read only by
+the alarm machinery and the UI.
+
+**Why it matters:** anything that writes a queued post's time outside `QueueRepository`
+puts the two into disagreement, and the symptom is a post firing at a moment the queue
+screen never showed. `PostRepository` therefore arms alarms only for `FIXED` posts, and
+the queue DAO queries order by `queuePosition`, never by `scheduledAt`.
+
+**Rule:** when a value is derived, say so where it is declared, and give exactly one class
+permission to write it.
+
+### 🟡 A test suite that edits the owner's posting schedule
+
+**What happened:** `PostWorkerTest` and `QueueReorderTest` need slots to exist before the
+planner has anywhere to put a post — and they run against the real database on the real
+phone, same as everything else in `androidTest`.
+
+**Fix:** both snapshot the queue settings in `@Before` and restore them in `@After`, and
+track every slot they create so it can be deleted. This is the same class of hazard as the
+publish seam below, one step milder: not "a test can post to the live account", but "a test
+can quietly change how the live account posts".
+
+**Rule:** an instrumented test touches real user state. Anything it creates, it deletes;
+anything it changes, it puts back.
+
 ## Known risks still open
 
 - **App Standby buckets.** Measured active on the Fold 7. autoinsta is a
@@ -260,5 +296,11 @@ Cost a full failed build each. All three are import problems, not logic problems
   the same App Standby concern that affects posting.
 - **The OAuth bounce page depends on GitHub Pages staying up** and the repo staying
   public. If either changes, login breaks until the redirect URI is re-pointed.
-- **No in-app manual exists.** Per project convention a feature isn't done until the
-  manual describes it — currently nothing is described.
+- **No in-app manual screen exists.** Per project convention a feature isn't done until
+  the manual describes it. The queue's entries **are** written — `docs/manual/queue.md`,
+  including its hidden gems — but there is nothing in the app that renders them yet, and
+  nothing is written for Phases 0–5b. The screen is Phase 6.
+- **The queue has not run a real week.** Everything is proven by test and by hand; what is
+  unproven is the thing that only time can show — that a rhythm set once keeps working
+  while nobody is watching. This is the same App Standby question as above, now with more
+  riding on it.

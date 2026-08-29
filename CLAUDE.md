@@ -8,7 +8,7 @@ API**, no backend server. Target user: a **digital-art Instagram account** (Crea
 
 ---
 
-## 🚦 START HERE — state as of 2026-08-26
+## 🚦 START HERE — state as of 2026-08-29
 
 **The app works.** Schedule a post → it fires on time → uploads to Cloudinary →
 publishes to Instagram → records the result and notifies. Proven with a real post to the
@@ -16,14 +16,15 @@ live account (`@manjo_4`).
 
 | | |
 |---|---|
-| Built | Phases 0 → 5b (see the BUILT vs PLANNED table below) |
+| Built | Phases 0 → 5c (see the BUILT vs PLANNED table below) |
 | Next | **Phase 6** — polish, presets + history screens, in-app manual |
-| Tests | 119 unit (JVM) + 33 instrumented (device), lint 0 errors |
+| Tests | 163 unit (JVM) + 38 instrumented (device), lint 0 errors |
 | Device | Samsung Galaxy Z Fold 7 (`R5CX631BMJB`), Android 16 / API 36 |
 | Repo | https://github.com/manjo00/instaauto (private), branch `main` |
 
-**Unverified right now:** the fitting editor (Phase 5b) has not been tried on real
-artwork by the owner. That is the first thing to confirm.
+**Unverified right now:** two things, both needing the owner rather than a test.
+The fitting editor (5b) has not been tried on real artwork, and the posting queue (5c)
+has not run a real week. Confirm those before building anything new.
 
 **Read in this order:** this file → `docs/STATUS.md` (gotchas, each with its root cause)
 → `docs/ROADMAP.md` (debt and ideas) → `docs/ARCHITECTURE.md` (the map).
@@ -179,6 +180,7 @@ CLAUDE.md                              this file — the first thing a fresh cha
 | 4 | Account connect — Business Login for Instagram, 60-day token | ✅ Built |
 | 5a | Cloudinary upload + real Graph API publish | ✅ Built — **posts for real** |
 | 5b | Media fitting editor — preview, manual crop, per-item pad/crop | ✅ Built |
+| 5c | Posting queue — recurring slots, ordered pool, drag reorder, catch-up, pause | ✅ Built |
 | 6 | Polish, presets + history screens, **in-app manual** | ⏳ **Next** |
 | 7 | Release prep — signing, R8 | ⏳ Planned |
 
@@ -188,6 +190,11 @@ post to the live account on 2026-08-26.
 
 ⚠️ **Instagram accepts only 4:5 to 1.91:1 images, JPEG only.** `MediaFit` handles both by
 transforming the Cloudinary *delivery URL* — the stored original is never touched.
+
+⚠️ **A queued post's `scheduledAt` is derived, not chosen.** `queuePosition` is the truth;
+`QueuePlanner` computes the time and only `QueueRepository` may write it. Anything else
+that sets a queued post's time puts the two into disagreement, and the symptom is a post
+firing at a moment the queue screen never showed. See `docs/ARCHITECTURE.md`.
 
 ⚠️ **Never put an OAuth login in a WebView** — Instagram's renders blank inside one, with
 no error. Custom Tabs only. And **Meta rejects custom-scheme redirect URIs**; the app uses
@@ -202,6 +209,7 @@ an https bounce page (`docs/oauth/index.html`, served by GitHub Pages) that forw
 | 1 (semantic) | `media_items.localUri` changed meaning: was a `content://` picker address, now an **app-private file path**. No schema change — the column is still `TEXT`. |
 | 2 | `scheduled_posts.missedPolicy` added (per-post rule for a post whose time passed while the device was off). Real `Migration(1,2)`; **`fallbackToDestructiveMigration()` removed**. |
 | 3 | `media_items` gained `widthPx`, `heightPx`, `fitMode`, `cropOffset` — per-image fitting. `Migration(2,3)` defaults to PAD at centre, matching previous behaviour. |
+| 4 | The posting queue: new `posting_slots` and `queue_settings` tables; `scheduled_posts` gained `timingMode`, `queuePosition`, `notBeforeMillis`. `Migration(3,4)` defaults every existing post to `FIXED` — exactly how it already behaved — and seeds the settings row. |
 
 ✅ Real migrations are in place (`data/db/Migrations.kt`). **Every schema change now needs
 a migration there plus a case in `MigrationTest`** — schemas are exported to `app/schemas/`
