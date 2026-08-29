@@ -19,7 +19,7 @@ Last updated: 2026-08-29
 | 4 — Account connect | Instagram login via Custom Tabs; 60-day token, auto-renewed | 59 unit + 28 instrumented on the Fold 7; **connected to the real account**, token encrypted, weekly renewal job verified in `dumpsys jobscheduler` |
 | 5a — Real publishing | Cloudinary upload + Graph API publish; image / Reel / carousel | 107 unit + 31 instrumented; **a real post reached the live account**; PNG→JPEG and 9:16→4:5 fitting proven against live Cloudinary |
 | 5b — Fitting editor | Per-image preview, manual crop against Instagram's frame, pad/crop choice | 119 unit + 33 instrumented; schema v3 with migration tests |
-| 5c — Posting queue | Recurring slots + an ordered pool; drag to reorder, catch-up window, pause | 162 unit green, lint 0 errors; **42 instrumented written but not yet run — no device attached** |
+| 5c — Posting queue | Recurring slots + an ordered pool; drag to reorder, catch-up window, pause | 162 unit + 46 instrumented on the Fold 7, lint 0 errors; schema v4 with migration tests; drag proven end to end on the device |
 
 ## In flight
 
@@ -31,12 +31,10 @@ post, no alarm, nothing fires. Drag to reorder, pause, and a configurable catch-
 that keeps a just-missed slot open for a post the phone could not publish *or* one added
 afterwards.
 
-**What is proven:** 162 unit tests (the planner, including both daylight-saving edges),
-a clean `assembleDebug`, and lint with 0 errors.
-**What is not:** no device was attached, so the 9 new instrumented tests — the v3→v4
-migration, the four queued-post worker cases, and the drag gesture — have **never been
-run**, and the build has not been installed. Nothing in the queue has been touched by
-hand. Both are the first things to do next.
+**What is proven:** 162 unit tests (the planner, including both daylight-saving edges) and
+46 instrumented tests on the Fold 7 — the v3→v4 migration, the four queued-post worker
+cases, and the drag gesture end to end. Lint 0 errors. Installed and launching.
+**What is not:** nobody has used it for a real week. That is the open verification.
 
 Two things built but never surfaced: `post_history` is written on every publish and has no
 screen, and hashtag presets have a table and repository but no way to create one — so the
@@ -256,6 +254,83 @@ Cost a full failed build each. All three are import problems, not logic problems
 `Overload resolution ambiguity`. Renamed the composable to `AppRoot()`.
 
 ---
+
+### 🔴 An encrypted file in a backup is worse than no file at all
+
+**Symptom:** the whole instrumented suite died with
+`javax.crypto.AEADBadTagException` / `KeyStoreException: Signature/MAC verification failed`
+from inside `TokenStore`, in a background coroutine on launch. Found on 2026-08-29 while
+running the Phase 5c tests — `connectedAndroidTest` uninstalls and reinstalls the app, and
+the app came back under a **new UID** each time (10701, then 10703).
+
+**Root cause:** `android:allowBackup="true"` with no exclusions, so Android's backup and
+device-transfer included `autoinsta_secure_prefs.xml` — the *encrypted* token file.
+**Keystore keys are never backed up.** The ciphertext therefore comes back on a device
+that has no key able to read it. `androidx.security` throws while **opening** the file,
+before any of our code runs, so the failure lands wherever the store is first touched.
+For this app that is `AutoInstaApp.onCreate`'s background refresh: a permanent crash on
+launch, with no way out but clearing app data.
+
+This was never queue-specific. **Samsung Smart Switch is the likeliest way it would have
+reached the owner** — move to a new phone, and autoinsta never opens again.
+
+**Fix, in two layers:**
+1. `res/xml/backup_rules.xml` + `res/xml/data_extraction_rules.xml` exclude the file from
+   both cloud backup and device transfer. That is the real fix.
+2. `TokenStore.openOrReset()` catches a failure to open, deletes the file *and* the
+   Keystore alias, and starts fresh — so a wiped Keystore or a changed lock screen costs
+   only the Instagram login, not the app.
+
+Proven by `TokenStoreTest`: both recovery cases **fail on the old code**
+(`CharConversionException: ... is not a valid hex string`) and pass on the new.
+
+**Rule:** anything encrypted with a Keystore key must be excluded from backup, and must
+have a recovery path for the day the key is gone. Encryption at rest buys a new failure
+mode; budget for it.
+
+**Also fixed alongside:** `AutoInstaApp`'s application scope had no
+`CoroutineExceptionHandler`. `SupervisorJob` stops one child killing its siblings, but an
+unhandled exception still reaches the thread's default handler and takes the process down.
+Background upkeep must never be able to crash the app in front of the owner.
+
+### 🟠 Compose merges a clickable card's semantics — tests aim at the wrong node
+
+**Symptom:** `QueueReorderTest` found the drag handle, dragged it, and nothing happened.
+No exception; the assertion simply never came true.
+
+**What the evidence showed:** logging the matched nodes' bounds gave **984 × 294** — the
+whole card, not a 24dp icon.
+
+**Root cause:** `Card(onClick = …)` sets `mergeDescendants`, so every child's
+`contentDescription` is merged into one node. `onAllNodesWithContentDescription("Drag to
+reorder")` therefore returned the *card*, and `performTouchInput { down(center) }` landed
+in the middle of it — where the only gesture is a long-press drag, which a plain drag never
+triggers. The list just scrolled instead.
+
+**Fix:** `useUnmergedTree = true` when aiming at a child inside a clickable container.
+
+**Worth keeping:** hit-testing is *not* affected by semantics merging — a real finger on
+the handle always worked. The bug was only ever in what the test was pointing at, which is
+exactly the kind of failure that reads as "the feature is broken".
+
+**Rule:** when a UI test does nothing at all, check *which node* it matched before
+suspecting the code. Log `fetchSemanticsNodes()` bounds — it takes one run.
+
+### 🟡 `@Before fun setUp() = runBlocking { … }` can stop being void
+
+**Symptom:** `Failed to instantiate test runner class AndroidJUnit4ClassRunner`, which
+aborted the entire class — 42 tests reported as one `initializationError`.
+
+**Root cause:** buried three `Caused by`s down: `Method tearDown() should be void`. An
+expression-bodied `= runBlocking { … }` adopts the block's last expression as its return
+type, and the last line was `sourceDir.deleteRecursively()` — a `Boolean`. JUnit requires
+`void`.
+
+**Fix:** `= runBlocking<Unit> { … }`.
+
+**Rule:** JUnit lifecycle methods must be explicitly `Unit` when written as expressions.
+And when a runner fails to instantiate, read to the last `Caused by` — the top of that
+stack says nothing useful.
 
 ### 🟡 Two fields that both look like "when"
 

@@ -48,7 +48,7 @@ class QueueReorderTest {
     private var savedPaused = false
 
     @Before
-    fun setUp() = runBlocking {
+    fun setUp() = runBlocking<Unit> {
         app = ApplicationProvider.getApplicationContext()
         sourceDir = File(app.cacheDir, "reorder-test").apply { mkdirs() }
         savedPaused = app.queueRepository.settings().paused
@@ -58,7 +58,7 @@ class QueueReorderTest {
     }
 
     @After
-    fun tearDown() = runBlocking {
+    fun tearDown() = runBlocking<Unit> {
         createdPostIds.forEach { app.postRepository.deletePost(it) }
         createdPostIds.clear()
         createdSlotIds.forEach { app.queueRepository.deleteSlot(it) }
@@ -97,7 +97,7 @@ class QueueReorderTest {
         app.queueRepository.observeQueue().first().map { it.post.caption }
 
     @Test
-    fun draggingTheLastCardToTheTopReordersThePoolAndPersistsIt() = runBlocking {
+    fun draggingTheLastCardToTheTopReordersThePoolAndPersistsIt() = runBlocking<Unit> {
         val first = givenQueuedPost("first")
         val second = givenQueuedPost("second")
         val third = givenQueuedPost("third")
@@ -114,15 +114,31 @@ class QueueReorderTest {
         }
         composeRule.waitForIdle()
 
-        val handles = composeRule.onAllNodesWithContentDescription("Drag to reorder")
+        // useUnmergedTree is essential: Card(onClick) merges its children's semantics, so
+        // the merged tree reports the whole 984x294 card under this description. Touching
+        // its centre lands nowhere near the handle, and a plain drag on the card body does
+        // nothing (that path needs a long press). Hit-testing is unaffected — a real finger
+        // on the handle works either way — but the test has to aim at the real node.
+        val handles = composeRule.onAllNodesWithContentDescription(
+            "Drag to reorder",
+            useUnmergedTree = true,
+        )
         handles[2].performTouchInput {
             down(center)
-            // Far enough up to clear every card above it. The target index clamps to the
-            // topmost visible row, so the exact distance does not have to be tuned.
-            moveBy(Offset(0f, -1_200f))
+            // Several small moves, not one big one: a real finger produces a stream of
+            // move events, and the first is partly eaten by touch slop. Far enough up to
+            // clear every card above it — the target index clamps to the topmost visible
+            // row, so the exact distance does not have to be tuned.
+            repeat(12) { moveBy(Offset(0f, -100f)) }
             up()
         }
         composeRule.waitForIdle()
+
+        // The drop commits from a coroutine, which waitForIdle does not track — so wait
+        // for the database to actually say so rather than racing it.
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runBlocking { queueCaptions() } == listOf("third", "first", "second")
+        }
 
         assertEquals(
             "the dragged post should now be first, and it should have been saved",

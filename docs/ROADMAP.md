@@ -72,10 +72,10 @@ Ordered by how likely it is to bite.
 | **Compose UI tests** | **M** | The fitting editor's drag gesture, the compose screen, and the queue have no automated coverage. Their *logic* is covered by pure tests; the interactions are not. |
 | **Media disk-usage cap** | **S** | A queue of 10-item carousels could sit on hundreds of MB. Nothing prunes orphaned files beyond per-post cleanup. |
 | **Hilt instead of manual DI** | **M** | `AutoInstaApp` hand-wires everything. It works, but `publishRepositoryOverride` exists purely as a test seam — a DI framework would give that properly. |
-| **`TokenStore` has no instrumented test** | **S** | Encryption against the real Keystore is unverified by test; only by hand. |
+| **A queue card's semantics are one merged blob** | **S** | `Card(onClick)` merges its children, so TalkBack announces the caption, the date, "Delete", "Drag to reorder" and the debug bolt as a single node. Discovered while fixing the reorder test. Not a correctness bug; a real accessibility smell. |
 | **Meta error parsing uses a regex** | **S** | `AccountRepository.extractMetaMessage` and `PublishRepository.metaMessage` scrape the body because Meta's error shape varies. `MetaErrorEnvelopeDto` exists and could be tried first with the regex as fallback. |
 | **`PostWorkerTest` uses the real app instance** | **S** | It substitutes a fake publisher (safe), but still reads/writes the real database because `PostWorker` reaches for `applicationContext as AutoInstaApp`. The queue tests now also create and restore real posting slots — see STATUS. |
-| **`QueueReorderTest` is the most fragile test in the suite** | **S** | It drives a real gesture on a real screen. It drags well past the top so the target index clamps rather than depending on card heights, but it is still the first thing to break if the Home layout changes. |
+| **`QueueReorderTest` is the most fragile test in the suite** | **S** | It drives a real gesture on a real screen. It drags well past the top so the target index clamps rather than depending on card heights, and it targets the unmerged tree — but it is still the first thing to break if the Home layout changes. |
 | **Alarm horizon is 7 days, chosen not measured** | **S** | Same class of guess as `MAX_RETRIES = 4`. Arming a queue three months deep would be wasteful; 7 days is comfortable but arbitrary. |
 
 ---

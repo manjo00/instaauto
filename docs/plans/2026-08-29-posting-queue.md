@@ -44,9 +44,17 @@ Batches are commits. `main` stays green between them.
 ## Batch 6 — docs, manual, ship
 - [x] `docs/manual/queue.md` (incl. hidden gems: long-press drag, catch-up, pause)
 - [x] STATUS, ARCHITECTURE, CLAUDE.md (schema v4 + BUILT table), Master Plan, ROADMAP
-- [x] lint 0 errors, unit tests green
-- [ ] **instrumented tests + install — blocked, no device attached**
-- [ ] Manual test steps handed over
+- [x] lint 0 errors, unit tests green (162)
+- [x] instrumented green on the Fold 7 (46), installed
+- [x] Manual test steps handed over
+
+## Found while verifying (fixed, outside the original scope)
+
+- **Crash on launch after any backup restore.** `allowBackup` included the encrypted token
+  file; Keystore keys are never backed up. Excluded it from backup and device transfer, and
+  gave `TokenStore` a recovery path. Regression test proven to fail on the old code.
+- **`AutoInstaApp` had no `CoroutineExceptionHandler`**, so background upkeep could take
+  the process down. It no longer can.
 
 ---
 

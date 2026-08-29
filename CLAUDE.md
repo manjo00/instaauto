@@ -18,16 +18,16 @@ live account (`@manjo_4`).
 |---|---|
 | Built | Phases 0 → 5c (see the BUILT vs PLANNED table below) |
 | Next | **Phase 6** — polish, presets + history screens, in-app manual |
-| Tests | 162 unit (JVM) green, lint 0 errors. **42 instrumented written; the 9 new ones have never been run — the Fold 7 was not attached.** |
+| Tests | 162 unit (JVM) + 46 instrumented on the Fold 7, all green. Lint 0 errors. Installed. |
 | Device | Samsung Galaxy Z Fold 7 (`R5CX631BMJB`), Android 16 / API 36 |
 | Repo | https://github.com/manjo00/instaauto (private), branch `main` |
 
-**Unverified right now:**
-1. **Phase 5c's instrumented tests have never run and the build is not installed** — no
-   device was attached when it was written. Run `connectedDebugAndroidTest`, then install.
-2. The fitting editor (5b) has not been tried on real artwork.
-3. The posting queue (5c) has not run a real week.
-Confirm all three before building anything new.
+**Unverified right now:** two things, both needing the owner rather than a test.
+The fitting editor (5b) has not been tried on real artwork, and the posting queue (5c)
+has not run a real week. Confirm both before building anything new.
+
+⚠️ **The Instagram login was wiped** by the 2026-08-29 device test run. Reconnect in
+Settings.
 
 **Read in this order:** this file → `docs/STATUS.md` (gotchas, each with its root cause)
 → `docs/ROADMAP.md` (debt and ideas) → `docs/ARCHITECTURE.md` (the map).
@@ -37,6 +37,9 @@ Then the specific files for the task. Don't grep the whole codebase.
 1. Editing `secrets.properties` does **not** rebuild BuildConfig — force it and verify.
 2. `connectedAndroidTest` **uninstalls the app**, taking the database and Instagram token.
    Reinstall and expect to reconnect.
+3. Anything encrypted with a Keystore key must be **excluded from backup** and must have a
+   recovery path — a restored backup has the ciphertext and none of the keys. This crashed
+   the app on launch once already; see `docs/STATUS.md`.
 
 ---
 

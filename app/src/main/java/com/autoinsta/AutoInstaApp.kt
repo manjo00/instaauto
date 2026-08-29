@@ -12,6 +12,8 @@ import com.autoinsta.data.repository.PresetRepository
 import com.autoinsta.data.repository.PublishRepository
 import com.autoinsta.data.repository.QueueRepository
 import com.autoinsta.scheduler.Notifier
+import android.util.Log
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -121,6 +123,18 @@ class AutoInstaApp : Application() {
         QueueMaintenanceWorker.schedule(this)
     }
 
-    /** Lives as long as the process — for work that must not die with a screen. */
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /**
+     * Lives as long as the process — for work that must not die with a screen.
+     *
+     * The handler is not decoration. `SupervisorJob` stops one child's failure killing its
+     * siblings, but an exception with nowhere to go still reaches the thread's default
+     * handler and takes the whole process down. Everything launched here is background
+     * upkeep — a token refresh, a replan — and none of it is worth crashing the app in
+     * front of the owner for.
+     */
+    private val applicationScope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, error ->
+            Log.e("AutoInstaApp", "Background work failed", error)
+        }
+    )
 }

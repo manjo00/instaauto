@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 and below (fullBackupContent).
+
+  The Instagram token is encrypted with a key held in the Android Keystore, and Keystore
+  keys are NEVER backed up. Backing up the ciphertext therefore restores a file that
+  nothing on the new device can read, and androidx.security throws while opening it —
+  which crashes the app on launch, permanently.
+
+  Excluding it means a restored phone comes back with the queue intact and simply asks to
+  reconnect Instagram. See docs/STATUS.md.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="autoinsta_secure_prefs.xml" />
+</full-backup-content>
