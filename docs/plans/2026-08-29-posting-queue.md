@@ -60,6 +60,22 @@ Batches are commits. `main` stays green between them.
 
 ## Noticed (not fixing now)
 
+- **`queue_settings` is never seeded on a fresh install.** The seeding `INSERT` lives only
+  in `MIGRATION_3_4`, and a database created directly at v4 runs no migrations — so an
+  upgraded install has the row and a fresh one does not. Verified on the tablet: the table
+  is empty and the queue works anyway, because `settings()` falls back to
+  `QueueSettingsEntity()` and `upsert` creates the row on the first write. Harmless today,
+  but the two install paths differ, and the migration's seed is only ever exercised by the
+  upgrade. Worth making one of them authoritative.
+- **One unexplained "Add slot" that appeared not to save.** On the very first cold-start
+  interaction on the tablet, adding Wednesday 7:00 PM left the screen showing "No slots
+  yet". Two immediate retries of the identical sequence both saved correctly, and the DB
+  read that seemed to confirm the loss was unreliable (the `-shm` was copied alongside a
+  live `-wal`, and an earlier copy used `adb shell`, which corrupts binary). Most likely a
+  slow first Flow emission on a cold start rather than a lost write — **but unproven**. If
+  it recurs, the thing to measure is the latency between `slotDao.insert` and the
+  `observeAll()` emission on first subscription.
+
 - **`HomeViewModel.fireSoon` (the debug ⚡ bolt) can be undone by a replan.** It writes a
   time 20 seconds out; any replan before the alarm fires overwrites it for a queued post.
   In practice nothing triggers a replan in that window, so it works — but it is luck, not
