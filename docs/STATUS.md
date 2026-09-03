@@ -31,10 +31,18 @@ post, no alarm, nothing fires. Drag to reorder, pause, and a configurable catch-
 that keeps a just-missed slot open for a post the phone could not publish *or* one added
 afterwards.
 
-**What is proven:** 162 unit tests (the planner, including both daylight-saving edges) and
-46 instrumented tests on the Fold 7 — the v3→v4 migration, the four queued-post worker
-cases, and the drag gesture end to end. Lint 0 errors. Installed and launching.
-**What is not:** nobody has used it for a real week. That is the open verification.
+**What is proven:** 169 unit tests (the planner, including both daylight-saving edges) and
+52 instrumented tests — the v3→v4 migration, the queued-post worker cases, the drag
+gesture, and the publish pipeline's readiness check. Lint 0 errors.
+
+**And proven against the live account, 2026-09-03 16:01:** a queued post published for
+real through the catch-up path — the owner widened the window to 2 days, which reopened a
+slot that had passed six hours earlier, and the head of the queue filled it. Instagram
+returned media id `18619848802020190`; the post then left the pool exactly as designed.
+That is the queue *and* the publish-race fix confirmed end to end against the real API.
+
+**What is still not proven:** a real *week*. One post through the queue is not a rhythm
+kept while nobody is watching — that is still the open question, along with App Standby.
 
 Two things built but never surfaced: `post_history` is written on every publish and has no
 screen, and hashtag presets have a table and repository but no way to create one — so the

@@ -22,9 +22,12 @@ live account (`@manjo_4`).
 | Device | Samsung Galaxy Z Fold 7 (`R5CX631BMJB`), Android 16 / API 36 |
 | Repo | https://github.com/manjo00/instaauto (private), branch `main` |
 
-**Unverified right now:** two things, both needing the owner rather than a test.
-The fitting editor (5b) has not been tried on real artwork, and the posting queue (5c)
-has not run a real week. Confirm both before building anything new.
+**Verified 2026-09-03:** the queue published a real post through the catch-up path
+(Instagram media id `18619848802020190`), which also confirmed the publish-readiness fix
+against the live API.
+
+**Still unverified:** the fitting editor (5b) on real artwork, and a full *week* of the
+queue running unattended. Both need the owner rather than a test.
 
 ⚠️ **The Instagram login is wiped by every device test run** — and now never comes back
 from a backup either (the token is deliberately excluded). The `account` row in Room
