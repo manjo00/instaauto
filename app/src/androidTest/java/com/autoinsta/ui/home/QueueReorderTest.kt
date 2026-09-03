@@ -101,8 +101,12 @@ class QueueReorderTest {
         val first = givenQueuedPost("first")
         val second = givenQueuedPost("second")
         val third = givenQueuedPost("third")
+        val mine = setOf("first", "second", "third")
 
-        assertEquals(listOf("first", "second", "third"), queueCaptions())
+        // The device's queue is not empty in real life — the owner's own posts live here,
+        // and a restored backup can put more back. Assert only about the three this test
+        // created, and never touch anything else.
+        assertEquals(listOf("first", "second", "third"), queueCaptions().filter { it in mine })
 
         composeRule.setContent {
             HomeScreen(
@@ -123,13 +127,16 @@ class QueueReorderTest {
             "Drag to reorder",
             useUnmergedTree = true,
         )
-        handles[2].performTouchInput {
+        // Position within the whole queue, not "the third card" — anything already
+        // waiting sits above these.
+        val dragFrom = runBlocking { queueCaptions() }.indexOf("third")
+        handles[dragFrom].performTouchInput {
             down(center)
             // Several small moves, not one big one: a real finger produces a stream of
             // move events, and the first is partly eaten by touch slop. Far enough up to
             // clear every card above it — the target index clamps to the topmost visible
             // row, so the exact distance does not have to be tuned.
-            repeat(12) { moveBy(Offset(0f, -100f)) }
+            repeat(20) { moveBy(Offset(0f, -150f)) }
             up()
         }
         composeRule.waitForIdle()
@@ -137,17 +144,17 @@ class QueueReorderTest {
         // The drop commits from a coroutine, which waitForIdle does not track — so wait
         // for the database to actually say so rather than racing it.
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            runBlocking { queueCaptions() } == listOf("third", "first", "second")
+            runBlocking { queueCaptions() }.filter { it in mine } == listOf("third", "first", "second")
         }
 
         assertEquals(
-            "the dragged post should now be first, and it should have been saved",
+            "the dragged post should now lead the others, and it should have been saved",
             listOf("third", "first", "second"),
-            queueCaptions(),
+            queueCaptions().filter { it in mine },
         )
 
         // The times follow the order, not the other way round.
-        val queue = app.queueRepository.observeQueue().first()
+        val queue = app.queueRepository.observeQueue().first().filter { it.post.caption in mine }
         assertEquals(third, queue[0].post.id)
         assertEquals(first, queue[1].post.id)
         assertEquals(second, queue[2].post.id)

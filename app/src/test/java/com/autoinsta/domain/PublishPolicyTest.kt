@@ -180,4 +180,88 @@ class PublishPolicyTest {
         assertFalse(PublishPolicy.carouselCountValid(11))
         assertFalse(PublishPolicy.carouselCountValid(0))
     }
+
+    // ── Waiting for an image, which is a different problem from video ──────
+    //
+    // These exist because of a real lost post on 2026-09-03: a single image was published
+    // the instant its container was created, Instagram had not finished fetching it, and
+    // the answer was "Media ID is not available".
+
+    @Test
+    fun `an image is checked in seconds, not minutes`() {
+        val decision = PublishPolicy.decidePoll(
+            State.IN_PROGRESS,
+            attempt = 1,
+            cadence = PublishPolicy.PollCadence.IMAGE,
+        )
+
+        assertTrue(decision is PollDecision.WaitAndRetry)
+        assertEquals(
+            "polling a photo once a minute would add a needless minute to every post",
+            PublishPolicy.IMAGE_POLL_INTERVAL_MILLIS,
+            (decision as PollDecision.WaitAndRetry).delayMillis,
+        )
+    }
+
+    @Test
+    fun `an image that never confirms is published anyway`() {
+        val decision = PublishPolicy.decidePoll(
+            State.UNKNOWN,
+            attempt = PublishPolicy.IMAGE_MAX_POLL_ATTEMPTS,
+            cadence = PublishPolicy.PollCadence.IMAGE,
+        )
+
+        // Refusing here would lose a post that was almost certainly fine. A genuine
+        // rejection comes back from media_publish as a retryable error instead.
+        assertTrue(
+            "an unhelpful status endpoint must not be fatal for a photo",
+            decision is PollDecision.PublishUnverified,
+        )
+    }
+
+    @Test
+    fun `a video that never confirms is still a failure`() {
+        val decision = PublishPolicy.decidePoll(
+            State.IN_PROGRESS,
+            attempt = PublishPolicy.MAX_POLL_ATTEMPTS,
+            cadence = PublishPolicy.PollCadence.VIDEO,
+        )
+
+        // Unlike an image, silence here means transcoding really did not finish.
+        assertTrue(decision is PollDecision.GiveUp)
+    }
+
+    @Test
+    fun `the default cadence is still the video one`() {
+        assertEquals(
+            PublishPolicy.decidePoll(State.IN_PROGRESS, attempt = 1, cadence = PublishPolicy.PollCadence.VIDEO),
+            PublishPolicy.decidePoll(State.IN_PROGRESS, attempt = 1),
+        )
+    }
+
+    // ── "Not yet" is not "never" ───────────────────────────────────────────
+
+    @Test
+    fun `Instagram saying the media is not available yet is transient`() {
+        // The exact body shape that lost a post: a 400 whose message means "wait".
+        val body = """{"error":{"message":"Media ID is not available","code":9007}}"""
+
+        assertTrue(PublishPolicy.isTransientRejection(body))
+    }
+
+    @Test
+    fun `Meta's own transient flag is honoured`() {
+        val body = """{"error":{"message":"Something","is_transient":true}}"""
+
+        assertTrue(PublishPolicy.isTransientRejection(body))
+    }
+
+    @Test
+    fun `a genuine rejection is not treated as transient`() {
+        val body = """{"error":{"message":"The image aspect ratio is not supported","code":36003}}"""
+
+        assertFalse(PublishPolicy.isTransientRejection(body))
+        assertFalse(PublishPolicy.isTransientRejection(null))
+        assertFalse(PublishPolicy.isTransientRejection(""))
+    }
 }

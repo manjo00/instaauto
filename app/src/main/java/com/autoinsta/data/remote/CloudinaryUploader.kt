@@ -35,7 +35,7 @@ import java.io.IOException
  * to the **delivery URL** instead. The stored artwork is never degraded, and the fit can
  * be changed later without re-uploading a thing.
  */
-class CloudinaryUploader(
+open class CloudinaryUploader(
     private val client: OkHttpClient,
     private val cloudName: String = BuildConfig.CLOUDINARY_CLOUD_NAME,
     private val uploadPreset: String = BuildConfig.CLOUDINARY_UPLOAD_PRESET,
@@ -52,7 +52,7 @@ class CloudinaryUploader(
     )
 
     /** True when the app has been given Cloudinary credentials to work with. */
-    fun isConfigured(): Boolean = cloudName.isNotBlank() && uploadPreset.isNotBlank()
+    open fun isConfigured(): Boolean = cloudName.isNotBlank() && uploadPreset.isNotBlank()
 
     /**
      * Upload [file] and return where it landed.
@@ -60,7 +60,7 @@ class CloudinaryUploader(
      * @throws IOException with a readable reason — this runs inside a background worker
      *         whose only output is a notification, so the message has to stand alone.
      */
-    suspend fun upload(file: File, mediaType: MediaType): Uploaded = withContext(Dispatchers.IO) {
+    open suspend fun upload(file: File, mediaType: MediaType): Uploaded = withContext(Dispatchers.IO) {
         if (!isConfigured()) {
             throw IOException("Cloudinary isn't set up yet — add the upload preset in settings.")
         }
@@ -115,7 +115,7 @@ class CloudinaryUploader(
      * because that one points at the untouched original — which may be a PNG, or too
      * tall, and would be rejected.
      */
-    fun deliveryUrl(
+    open fun deliveryUrl(
         uploaded: Uploaded,
         mode: MediaFit.Mode,
         cropOffset: Float = 0.5f,

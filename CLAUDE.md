@@ -18,7 +18,7 @@ live account (`@manjo_4`).
 |---|---|
 | Built | Phases 0 → 5c (see the BUILT vs PLANNED table below) |
 | Next | **Phase 6** — polish, presets + history screens, in-app manual |
-| Tests | 162 unit (JVM) + 46 instrumented on the Fold 7, all green. Lint 0 errors. Installed. |
+| Tests | 169 unit (JVM) + 52 instrumented, all green. Lint 0 errors. Installed on the Fold 7 and the Tab S9 Ultra. |
 | Device | Samsung Galaxy Z Fold 7 (`R5CX631BMJB`), Android 16 / API 36 |
 | Repo | https://github.com/manjo00/instaauto (private), branch `main` |
 
@@ -26,8 +26,10 @@ live account (`@manjo_4`).
 The fitting editor (5b) has not been tried on real artwork, and the posting queue (5c)
 has not run a real week. Confirm both before building anything new.
 
-⚠️ **The Instagram login was wiped** by the 2026-08-29 device test run. Reconnect in
-Settings.
+⚠️ **The Instagram login is wiped by every device test run** — and now never comes back
+from a backup either (the token is deliberately excluded). The `account` row in Room
+*does* survive, so Settings can show "connected" with no token behind it. Reconnect after
+any `connectedAndroidTest`.
 
 **Read in this order:** this file → `docs/STATUS.md` (gotchas, each with its root cause)
 → `docs/ROADMAP.md` (debt and ideas) → `docs/ARCHITECTURE.md` (the map).

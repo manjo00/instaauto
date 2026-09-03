@@ -24,7 +24,7 @@ sealed interface ConnectResult {
  * class is the only thing that knows both halves, so callers can't accidentally end up
  * with one without the other.
  */
-class AccountRepository(
+open class AccountRepository(
     private val accountDao: AccountDao,
     private val tokenStore: TokenStore,
     private val authApi: InstagramAuthApi,
@@ -34,10 +34,10 @@ class AccountRepository(
     fun observe(): Flow<AccountEntity?> = accountDao.observe()
 
     /** One-shot read — for workers that don't need a live stream. */
-    suspend fun get(): AccountEntity? = accountDao.get()
+    open suspend fun get(): AccountEntity? = accountDao.get()
 
     /** The token to sign API calls with, or null when not connected. */
-    fun accessToken(): String? = tokenStore.getAccessToken()
+    open fun accessToken(): String? = tokenStore.getAccessToken()
 
     fun isConnected(): Boolean = tokenStore.hasToken()
 

@@ -13,11 +13,38 @@ object PublishPolicy {
 
     // ── Waiting for video to finish processing ─────────────────────────────
 
-    /** Meta's guidance: query a container's status once per minute. */
+    /** Meta's guidance for video: query a container's status once per minute. */
     const val POLL_INTERVAL_MILLIS: Long = 60_000
 
     /** …for no more than five minutes. */
     const val MAX_POLL_ATTEMPTS: Int = 5
+
+    /**
+     * An image container only has to be *fetched*, not transcoded — usually a second or
+     * two. Polling it once a minute would add a needless minute to every photo.
+     */
+    const val IMAGE_POLL_INTERVAL_MILLIS: Long = 2_000
+    const val IMAGE_MAX_POLL_ATTEMPTS: Int = 15
+
+    /**
+     * How often to look at a container, and what running out of looks means.
+     *
+     * The second part is the important one. For **video**, silence after five minutes is
+     * a real failure: transcoding should have finished. For an **image** it is not —
+     * publishing anyway is the better bet, because the container is almost certainly fine
+     * and a genuine rejection comes back as a retryable error anyway. Treating an
+     * unhelpful status endpoint as fatal would turn a working post into a lost one.
+     */
+    data class PollCadence(
+        val intervalMillis: Long,
+        val maxAttempts: Int,
+        val exhaustionIsFailure: Boolean,
+    ) {
+        companion object {
+            val VIDEO = PollCadence(POLL_INTERVAL_MILLIS, MAX_POLL_ATTEMPTS, exhaustionIsFailure = true)
+            val IMAGE = PollCadence(IMAGE_POLL_INTERVAL_MILLIS, IMAGE_MAX_POLL_ATTEMPTS, exhaustionIsFailure = false)
+        }
+    }
 
     /** What to do after one look at a container's status. */
     sealed interface PollDecision {
@@ -27,6 +54,12 @@ object PublishPolicy {
         /** Ready — publish it. */
         data object ReadyToPublish : PollDecision
 
+        /**
+         * Never confirmed ready, but worth publishing anyway — see [PollCadence].
+         * Distinct from [ReadyToPublish] so the difference stays honest in logs and tests.
+         */
+        data class PublishUnverified(val reason: String) : PollDecision
+
         /** Give up, with something worth telling the owner. */
         data class GiveUp(val reason: String) : PollDecision
     }
@@ -34,10 +67,12 @@ object PublishPolicy {
     /**
      * @param state Instagram's `status_code` for the container.
      * @param attempt 1-based; the first look is attempt 1.
+     * @param cadence how patient to be, and what running out means.
      */
     fun decidePoll(
         state: com.autoinsta.data.remote.dto.ContainerStatusDto.State,
         attempt: Int,
+        cadence: PollCadence = PollCadence.VIDEO,
     ): PollDecision {
         return when (state) {
             com.autoinsta.data.remote.dto.ContainerStatusDto.State.FINISHED ->
@@ -49,24 +84,52 @@ object PublishPolicy {
                 PollDecision.ReadyToPublish
 
             com.autoinsta.data.remote.dto.ContainerStatusDto.State.ERROR ->
-                PollDecision.GiveUp("Instagram couldn't process this video.")
+                PollDecision.GiveUp("Instagram couldn't process this media.")
 
             com.autoinsta.data.remote.dto.ContainerStatusDto.State.EXPIRED ->
                 PollDecision.GiveUp("Instagram discarded the upload before it was published.")
 
             com.autoinsta.data.remote.dto.ContainerStatusDto.State.IN_PROGRESS,
             com.autoinsta.data.remote.dto.ContainerStatusDto.State.UNKNOWN -> {
-                if (attempt >= MAX_POLL_ATTEMPTS) {
+                if (attempt < cadence.maxAttempts) {
+                    PollDecision.WaitAndRetry(cadence.intervalMillis)
+                } else if (cadence.exhaustionIsFailure) {
+                    val minutes = cadence.intervalMillis * cadence.maxAttempts / 60_000
                     PollDecision.GiveUp(
-                        "Instagram was still processing this video after " +
-                            "${MAX_POLL_ATTEMPTS} minutes."
+                        "Instagram was still processing this media after $minutes minutes."
                     )
                 } else {
-                    PollDecision.WaitAndRetry(POLL_INTERVAL_MILLIS)
+                    PollDecision.PublishUnverified(
+                        "Instagram never confirmed the upload was ready; publishing anyway."
+                    )
                 }
             }
         }
     }
+
+    /**
+     * Does this Meta error body mean "not yet" rather than "never"?
+     *
+     * This exists because of a real lost post. Instagram answered `media_publish` with
+     * **"Media ID is not available"** — its wording for *the container is not ready yet* —
+     * as an HTTP 400. Treating every 4xx as permanent meant the worker gave up instead of
+     * retrying a few seconds later, and a finished piece silently dropped out of the queue.
+     */
+    fun isTransientRejection(body: String?): Boolean {
+        if (body.isNullOrBlank()) return false
+        if (TRANSIENT_FLAG.containsMatchIn(body)) return true
+        return TRANSIENT_MESSAGES.any { body.contains(it, ignoreCase = true) }
+    }
+
+    /** Meta's own marker, when it bothers to send one. */
+    private val TRANSIENT_FLAG = Regex(""""is_transient"\s*:\s*true""")
+
+    /** …and the wordings seen in the wild when it doesn't. */
+    private val TRANSIENT_MESSAGES = listOf(
+        "Media ID is not available",
+        "not ready to be published",
+        "Please wait a moment",
+    )
 
     // ── The rolling publish quota ──────────────────────────────────────────
 

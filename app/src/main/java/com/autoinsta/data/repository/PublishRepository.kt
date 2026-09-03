@@ -119,7 +119,12 @@ open class PublishRepository(
             accessToken = token,
         ).id ?: return PublishResult.TransientFailure("Instagram didn't return a container id.")
 
-        return publishContainer(igUserId, token, container)
+        // Instagram has to fetch the image from Cloudinary before it can publish it.
+        // Skipping this wait is what produced "Media ID is not available" on 2026-09-03.
+        return when (val wait = awaitReady(token, container, PublishPolicy.PollCadence.IMAGE)) {
+            is PublishResult.Success -> publishContainer(igUserId, token, container)
+            else -> wait
+        }
     }
 
     private suspend fun publishReel(
@@ -138,7 +143,7 @@ open class PublishRepository(
 
         // A reel isn't publishable the moment its container exists — Instagram has to
         // fetch and transcode the video first.
-        return when (val wait = awaitReady(igUserId, token, container)) {
+        return when (val wait = awaitReady(token, container, PublishPolicy.PollCadence.VIDEO)) {
             is PublishResult.Success -> publishContainer(igUserId, token, container)
             else -> wait
         }
@@ -181,19 +186,26 @@ open class PublishRepository(
             accessToken = token,
         ).id ?: return PublishResult.TransientFailure("Instagram didn't return a carousel id.")
 
-        return publishContainer(igUserId, token, parent)
+        // Same race as a single image, with more media to fetch.
+        return when (val wait = awaitReady(token, parent, PublishPolicy.PollCadence.IMAGE)) {
+            is PublishResult.Success -> publishContainer(igUserId, token, parent)
+            else -> wait
+        }
     }
 
     // ── Shared steps ───────────────────────────────────────────────────────
 
     /**
-     * Waits for a video container to become publishable, following Meta's guidance of one
-     * check per minute for at most five.
+     * Waits for a container to become publishable.
+     *
+     * Every post type needs this, not just video: Instagram has to go and fetch the media
+     * from Cloudinary before `media_publish` will accept it. [PublishPolicy.PollCadence]
+     * carries how patient to be and what running out of patience means.
      */
     private suspend fun awaitReady(
-        igUserId: String,
         token: String,
         containerId: String,
+        cadence: PublishPolicy.PollCadence,
     ): PublishResult {
         var attempt = 1
         while (true) {
@@ -201,8 +213,12 @@ open class PublishRepository(
                 api.getContainerStatus(containerId = containerId, accessToken = token).state
             }.getOrElse { ContainerStatusDto.State.UNKNOWN }
 
-            when (val decision = PublishPolicy.decidePoll(state, attempt)) {
+            when (val decision = PublishPolicy.decidePoll(state, attempt, cadence)) {
                 is PublishPolicy.PollDecision.ReadyToPublish ->
+                    return PublishResult.Success(containerId)
+                // Never confirmed, but worth trying — a real rejection comes back
+                // retryable, whereas refusing here would lose the post outright.
+                is PublishPolicy.PollDecision.PublishUnverified ->
                     return PublishResult.Success(containerId)
                 is PublishPolicy.PollDecision.GiveUp ->
                     return PublishResult.PermanentFailure(decision.reason)
@@ -249,9 +265,14 @@ open class PublishRepository(
         is retrofit2.HttpException -> {
             val body = runCatching { e.response()?.errorBody()?.string() }.getOrNull()
             val message = body?.let { metaMessage(it) }
-            when (e.code()) {
-                // 4xx is Instagram saying no — the same request will keep being refused.
-                in 400..499 -> PublishResult.PermanentFailure(
+            when {
+                // Checked before the 4xx rule: Meta reports "the container isn't ready
+                // yet" as a 400, and retrying that shortly is exactly right.
+                PublishPolicy.isTransientRejection(body) -> PublishResult.TransientFailure(
+                    message ?: "Instagram wasn't ready for this yet. Will retry."
+                )
+                // Otherwise 4xx is Instagram saying no — the same request keeps being refused.
+                e.code() in 400..499 -> PublishResult.PermanentFailure(
                     message ?: "Instagram rejected the post (HTTP ${e.code()})."
                 )
                 else -> PublishResult.TransientFailure(

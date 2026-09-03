@@ -3,7 +3,7 @@
 **Living document.** What's shipped, what's in flight, and every gotcha that cost us
 time — recorded with its *root cause*, so it never has to be rediscovered.
 
-Last updated: 2026-08-29
+Last updated: 2026-09-03
 
 ---
 
@@ -19,7 +19,7 @@ Last updated: 2026-08-29
 | 4 — Account connect | Instagram login via Custom Tabs; 60-day token, auto-renewed | 59 unit + 28 instrumented on the Fold 7; **connected to the real account**, token encrypted, weekly renewal job verified in `dumpsys jobscheduler` |
 | 5a — Real publishing | Cloudinary upload + Graph API publish; image / Reel / carousel | 107 unit + 31 instrumented; **a real post reached the live account**; PNG→JPEG and 9:16→4:5 fitting proven against live Cloudinary |
 | 5b — Fitting editor | Per-image preview, manual crop against Instagram's frame, pad/crop choice | 119 unit + 33 instrumented; schema v3 with migration tests |
-| 5c — Posting queue | Recurring slots + an ordered pool; drag to reorder, catch-up window, pause | 162 unit + 46 instrumented on the Fold 7, lint 0 errors; schema v4 with migration tests; drag proven end to end on the device |
+| 5c — Posting queue | Recurring slots + an ordered pool; drag to reorder, catch-up window, pause | 169 unit + 52 instrumented, lint 0 errors; schema v4 with migration tests; drag proven end to end on the device |
 
 ## In flight
 
@@ -254,6 +254,58 @@ Cost a full failed build each. All three are import problems, not logic problems
 `Overload resolution ambiguity`. Renamed the composable to `AppRoot()`.
 
 ---
+
+### 🔴 A container must be ready before you publish it — for every media type, not just video
+
+**Symptom:** a real post failed overnight with the notification *"Post didn't go out —
+Media ID is not available"*. Found 2026-09-03 on the tablet.
+
+**What the evidence showed:** the post fired at exactly 10:00:00 and the failure was
+recorded at 10:00:11. Eleven seconds covered uploading a 6.6 MB JPEG to Cloudinary,
+creating the container **and** publishing it.
+
+**Root cause:** publishing is always two steps — create a container, then publish it — and
+Instagram has to go and *fetch* the media from Cloudinary in between. `publishReel` waited
+for that (`awaitReady`). `publishSingle` and `publishCarousel` did not; they called
+`media_publish` immediately. "Media ID is not available" is Meta's wording for *this
+container is not ready yet*. It worked on 2026-08-26 only because the race happened to go
+our way — the worst kind of bug, one that passes once and fails later.
+
+**A second defect turned a blip into a lost post:** `classify()` mapped every 4xx to
+`PermanentFailure`, so the worker never retried. The post was marked FAILED and dropped
+out of the queue — and because both Home lists filter on `status = SCHEDULED`, it then
+became invisible in the app entirely.
+
+**Fix:** `awaitReady` now runs for all three pipelines, with a `PollCadence` per media
+type — video keeps Meta's one-check-a-minute-for-five, images use 2s x 15. Crucially the
+two cadences differ in what *running out* means: for video it is a failure, for an image
+it publishes anyway, because refusing there would lose a post that was almost certainly
+fine. And `PublishPolicy.isTransientRejection` now catches Meta's "not yet" wordings
+before the 4xx rule, so it retries instead of giving up.
+
+Proven by `PublishRepositoryTest`: on the old code the call log reads
+`[getPublishingLimit, createImageContainer, publishContainer]` — no status check at all —
+and the "Media ID is not available" case comes back `PermanentFailure`.
+
+**Rule:** when an API hands you a two-step create-then-commit, assume the gap is real and
+wait for it. And a provider saying "not yet" is not a 4xx-shaped "never" — read the body
+before deciding a failure is permanent.
+
+### 🟠 A test that assumes an empty device is a test that fails on a real one
+
+**Symptom:** `QueueReorderTest` failed with `expected:<[first, second, third]> but was:
+<[🚉 waiting for the train, …]>` — the owner's own post was in the queue.
+
+**Root cause, in two parts.** The test asserted on the *whole* queue, which is only ever
+empty on a fresh install. And `connectedAndroidTest` uninstalls and reinstalls the app,
+which triggers Android auto-backup to **restore the Room database** — bringing back a
+snapshot taken while that post was still SCHEDULED.
+
+**Fix:** the test now asserts only about the three posts it created, and finds its drag
+target by looking up its own caption's position rather than assuming index 2.
+
+**Rule:** an instrumented test shares the device with real data. Assert about what the
+test created, never about the state of the whole table.
 
 ### 🔴 An encrypted file in a backup is worse than no file at all
 
