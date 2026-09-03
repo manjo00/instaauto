@@ -62,6 +62,7 @@ class QueuePlannerTest {
         resumedAt: Long = 0L,
         fixed: List<Long> = emptyList(),
         notBefore: Map<Long, Long> = emptyMap(),
+        filled: Set<Long> = emptySet(),
     ) = QueuePlanner.plan(
         queuedIdsInOrder = queue,
         slots = slots,
@@ -72,6 +73,7 @@ class QueuePlannerTest {
         resumedAtMillis = resumedAt,
         fixedPostTimes = fixed,
         notBefore = notBefore,
+        filledSlotTimes = filled,
     )
 
     // ── The everyday case ──────────────────────────────────────────────────
@@ -187,6 +189,72 @@ class QueuePlannerTest {
         assertEquals("the most recent missed slot, not the oldest", at(9, 19), plan.timeFor(1L))
         assertEquals(at(12, 11), plan.timeFor(2L))
         assertEquals(at(14, 19), plan.timeFor(3L))
+    }
+
+    // ── A slot may only ever be filled once ────────────────────────────────
+    // Without this, a wide catch-up window drains the whole pool: each publish triggers
+    // a replan, the slot it just used is still "open", and the next post takes it too.
+
+    @Test
+    fun `a slot that has already been filled is not offered again`() {
+        // Monday 19:00 fired and published. Half a minute later the queue replans.
+        val plan = planAt(
+            nowMillis = at(7, 19, 0) + 30_000L,
+            queue = listOf(2L),
+            filled = setOf(at(7, 19)),
+        )
+
+        assertEquals(
+            "the next post must wait for Wednesday, not publish seconds after the first",
+            at(9, 19),
+            plan.timeFor(2L),
+        )
+        assertTrue(plan.assignments.none { it.isCatchUp })
+    }
+
+    @Test
+    fun `publishing does not cascade through the whole queue`() {
+        // The real hazard, with a 2-day window: post 1 has just gone out at Monday 19:00
+        // and everything behind it must stay put.
+        val plan = planAt(
+            nowMillis = at(7, 19, 5),
+            queue = listOf(2L, 3L, 4L),
+            window = TWO_DAYS,
+            filled = setOf(at(7, 19)),
+        )
+
+        assertTrue("nothing may follow it out the door", plan.assignments.none { it.isCatchUp })
+        assertEquals(at(9, 19), plan.timeFor(2L))
+        assertEquals(at(12, 11), plan.timeFor(3L))
+        assertEquals(at(14, 19), plan.timeFor(4L))
+    }
+
+    @Test
+    fun `an older unfilled slot is not used as a fallback`() {
+        // Monday and Wednesday both passed inside a 2-day window, and Wednesday's has
+        // been filled. Falling back to Monday would be the same burst by another route.
+        val plan = planAt(
+            nowMillis = at(9, 20),
+            queue = listOf(2L),
+            window = TWO_DAYS,
+            filled = setOf(at(9, 19)),
+        )
+
+        assertTrue(plan.assignments.none { it.isCatchUp })
+        assertEquals(at(12, 11), plan.timeFor(2L))
+    }
+
+    @Test
+    fun `a filled slot outside the window is irrelevant`() {
+        // Last week's post must not block this week's catch-up.
+        val plan = planAt(
+            nowMillis = at(7, 19, 30),
+            queue = listOf(1L),
+            filled = setOf(at(2, 19)),
+        )
+
+        assertEquals(at(7, 19), plan.timeFor(1L))
+        assertTrue(plan.isCatchUp(1L))
     }
 
     @Test

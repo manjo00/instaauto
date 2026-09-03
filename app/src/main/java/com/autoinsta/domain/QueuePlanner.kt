@@ -138,12 +138,18 @@ object QueuePlanner {
     /**
      * The slot that has passed but is still open, if there is one.
      *
-     * Open means: it happened, it happened within [catchUpWindowMillis], and it did not
+     * Open means: it happened, it happened within [catchUpWindowMillis], it did not
      * happen while the queue was paused ([resumedAtMillis] guards that -- honouring a
-     * slot the owner deliberately paused through would betray the toggle).
+     * slot the owner deliberately paused through would betray the toggle), and **nothing
+     * has been published into it already** ([filledSlotTimes]).
      *
-     * The most recent one wins. If a weekend of slots went by, only the last is offered,
-     * because catching every one of them up means several posts landing minutes apart.
+     * That last condition is what stops the queue emptying itself. Every publish triggers
+     * a replan, and without it the slot that just fired would still look open, so the next
+     * post would take it too -- and the one after that. A wide window would drain the
+     * whole pool in minutes.
+     *
+     * The most recent slot wins, and if it is already filled the answer is "none" rather
+     * than an older one: falling back would be the same burst by another route.
      */
     fun openCatchUpSlot(
         slots: List<Slot>,
@@ -151,13 +157,16 @@ object QueuePlanner {
         zone: ZoneId,
         catchUpWindowMillis: Long,
         resumedAtMillis: Long = 0L,
+        filledSlotTimes: Set<Long> = emptySet(),
     ): Long? {
         if (slots.isEmpty() || catchUpWindowMillis <= 0L) return null
         val earliest = maxOf(nowMillis - catchUpWindowMillis, resumedAtMillis)
         if (earliest > nowMillis) return null
-        return slotTimesFrom(slots, earliest - 1, zone)
+        val mostRecent = slotTimesFrom(slots, earliest - 1, zone)
             .takeWhile { it <= nowMillis }
             .lastOrNull()
+            ?: return null
+        return if (mostRecent in filledSlotTimes) null else mostRecent
     }
 
     /**
@@ -166,10 +175,12 @@ object QueuePlanner {
      * [slots] must already be filtered to the enabled ones. [fixedPostTimes] are the
      * times of posts the owner pinned by hand, so the planner can stay out of their way.
      * [notBefore] holds the "wait for the next slot instead" answer, per post.
+     * [filledSlotTimes] are slots something has already been published into.
      *
      * Rules, in order:
      * 1. Paused, or no slots, or nothing queued, means everything unassigned. No alarms.
-     * 2. At most **one** catch-up, and only for the post at the head of the queue.
+     * 2. At most **one** catch-up, only for the head of the queue, and never into a slot
+     *    that has already been used.
      * 3. Everyone else takes the next future slots, in queue order.
      * 4. A slot within [SLOT_COLLISION_WINDOW_MILLIS] of a fixed post is skipped.
      * 5. A post's [notBefore] pushes it past any slot earlier than that.
@@ -184,6 +195,7 @@ object QueuePlanner {
         resumedAtMillis: Long = 0L,
         fixedPostTimes: List<Long> = emptyList(),
         notBefore: Map<Long, Long> = emptyMap(),
+        filledSlotTimes: Set<Long> = emptySet(),
     ): Plan {
         if (paused || slots.isEmpty() || queuedIdsInOrder.isEmpty()) {
             return Plan(assignments = emptyList(), unassigned = queuedIdsInOrder)
@@ -195,7 +207,9 @@ object QueuePlanner {
         // Rule 2 -- only the head of the queue can fill an open slot. Letting the second
         // post take it when the first declined would reorder the queue behind the
         // owner's back, which is worse than simply leaving the slot unfilled.
-        val open = openCatchUpSlot(slots, nowMillis, zone, catchUpWindowMillis, resumedAtMillis)
+        val open = openCatchUpSlot(
+            slots, nowMillis, zone, catchUpWindowMillis, resumedAtMillis, filledSlotTimes,
+        )
         val head = remaining.first()
         if (open != null &&
             !collidesWithFixed(open, fixedPostTimes) &&

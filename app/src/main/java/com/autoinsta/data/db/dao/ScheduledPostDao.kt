@@ -90,6 +90,19 @@ interface ScheduledPostDao {
     """)
     suspend fun getQueuedIdsInOrder(): List<Long>
 
+    /**
+     * Slot times something has already been published into.
+     *
+     * This is what stops a wide catch-up window draining the pool: without it, the slot a
+     * post just fired into still looks open on the very next replan, and the post behind
+     * it goes out seconds later.
+     */
+    @Query("""
+        SELECT scheduledAt FROM scheduled_posts
+        WHERE status = 'POSTED' AND timingMode = 'QUEUED' AND scheduledAt >= :sinceMillis
+    """)
+    suspend fun getFilledSlotTimes(sinceMillis: Long): List<Long>
+
     /** Posts the owner pinned to a time, so the planner can stay out of their way. */
     @Query("""
         SELECT scheduledAt FROM scheduled_posts

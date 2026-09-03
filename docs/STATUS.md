@@ -299,6 +299,38 @@ and the "Media ID is not available" case comes back `PermanentFailure`.
 wait for it. And a provider saying "not yet" is not a 4xx-shaped "never" — read the body
 before deciding a failure is permanent.
 
+### 🔴 A catch-up slot stayed "open" after it was used — the queue would drain itself
+
+**Symptom:** none yet, and that is the point. Caught 2026-09-03 by the owner asking the
+right question — *"with a 2-day window, will it loop and post the whole queue?"* It would
+have.
+
+**Root cause:** `openCatchUpSlot` decided a slot was open purely from *time*: the most
+recent slot within the window. Nothing recorded that a post had already gone out into it.
+Every publish triggers a `replan()`, so the sequence was:
+
+1. Post A fires at Wed 19:00 and publishes.
+2. A leaves the pool, which replans.
+3. Wed 19:00 is seconds ago — still inside the window — so it still looks open.
+4. B is now head of the queue, takes it, and publishes ~10 seconds later. Then C.
+
+**The whole pool would empty in minutes.** Worse, this needed no wide window: even the
+2-hour default does it, because the loop runs at publish speed rather than clock speed.
+The existing "only one catch-up" rule only ever prevented a burst *within a single plan*,
+not across the replans each publish triggers.
+
+**Fix:** a slot is open only if nothing has been published into it.
+`ScheduledPostDao.getFilledSlotTimes` returns the `scheduledAt` of POSTED queued posts and
+the planner excludes them. If the most recent slot is filled the answer is "none" rather
+than an older one — falling back would be the same burst by another route.
+
+Proven by `QueuePlannerTest`: three cases fail on the old logic, including
+*publishing does not cascade through the whole queue*.
+
+**Rule:** "is this slot available?" is a question about **what has happened**, not just
+what time it is. Any rule derived from the clock alone will be re-satisfied on the next
+tick — and a publish loop re-ticks immediately.
+
 ### 🟠 A test that assumes an empty device is a test that fails on a real one
 
 **Symptom:** `QueueReorderTest` failed with `expected:<[first, second, third]> but was:

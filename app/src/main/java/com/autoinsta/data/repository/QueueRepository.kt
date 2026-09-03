@@ -95,6 +95,7 @@ class QueueRepository(
             resumedAtMillis = current.resumedAtMillis,
             fixedPostTimes = postDao.getFixedScheduledTimes(),
             notBefore = holds(),
+            filledSlotTimes = filledSlots(now, current.catchUpWindowMinutes),
         )
 
         val at = plan.timeFor(PREVIEW_POST_ID)
@@ -214,6 +215,7 @@ class QueueRepository(
             resumedAtMillis = current.resumedAtMillis,
             fixedPostTimes = postDao.getFixedScheduledTimes(),
             notBefore = holds(),
+            filledSlotTimes = filledSlots(now, current.catchUpWindowMinutes),
         )
 
         plan.assignments.forEach { postDao.updateScheduledAt(it.postId, it.atMillis) }
@@ -239,6 +241,14 @@ class QueueRepository(
 
     private suspend fun holds(): Map<Long, Long> =
         postDao.getNotBeforeHolds().associate { it.id to it.notBeforeMillis }
+
+    /**
+     * Slots already used, going back as far as the catch-up window can reach. Anything
+     * older cannot be offered anyway, so there is no point loading it.
+     */
+    private suspend fun filledSlots(nowMillis: Long, windowMinutes: Int): Set<Long> =
+        postDao.getFilledSlotTimes(nowMillis - QueuePlanner.windowMillis(windowMinutes))
+            .toSet()
 
     private companion object {
         /**
