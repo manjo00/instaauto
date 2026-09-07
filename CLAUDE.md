@@ -8,7 +8,7 @@ API**, no backend server. Target user: a **digital-art Instagram account** (Crea
 
 ---
 
-## 🚦 START HERE — state as of 2026-08-29
+## 🚦 START HERE — state as of 2026-09-07
 
 **The app works.** Schedule a post → it fires on time → uploads to Cloudinary →
 publishes to Instagram → records the result and notifies. Proven with a real post to the
@@ -16,8 +16,8 @@ live account (`@manjo_4`).
 
 | | |
 |---|---|
-| Built | Phases 0 → 5c (see the BUILT vs PLANNED table below) |
-| Next | **Phase 6** — polish, presets + history screens, in-app manual |
+| Built | Phases 0 → 5c, plus most of Phase 6 (see the BUILT vs PLANNED table below) |
+| Next | **Decide on the caption & title coach** (ROADMAP — two questions are waiting on the owner), then the in-app manual screen + app icon finish Phase 6 |
 | Tests | 169 unit (JVM) + 52 instrumented, all green. Lint 0 errors. Installed on the Fold 7 and the Tab S9 Ultra. |
 | Device | Samsung Galaxy Z Fold 7 (`R5CX631BMJB`), Android 16 / API 36 |
 | Repo | https://github.com/manjo00/instaauto (private), branch `main` |
@@ -192,7 +192,7 @@ CLAUDE.md                              this file — the first thing a fresh cha
 | 5a | Cloudinary upload + real Graph API publish | ✅ Built — **posts for real** |
 | 5b | Media fitting editor — preview, manual crop, per-item pad/crop | ✅ Built |
 | 5c | Posting queue — recurring slots, ordered pool, drag reorder, catch-up, pause | ✅ Built |
-| 6 | Polish, presets + history screens, **in-app manual** | ⏳ **Next** |
+| 6 | Polish, presets + history screens, **in-app manual** | 🟡 Mostly built — Done tab ✅, hashtag sets ✅, video thumbnails ✅; manual screen + app icon remain |
 | 7 | Release prep — signing, R8 | ⏳ Planned |
 
 **Today the app works end to end**: schedule a post, it fires on time, uploads to
@@ -201,6 +201,11 @@ post to the live account on 2026-08-26.
 
 ⚠️ **Instagram accepts only 4:5 to 1.91:1 images, JPEG only.** `MediaFit` handles both by
 transforming the Cloudinary *delivery URL* — the stored original is never touched.
+
+⚠️ **Instagram allows FIVE hashtags, not thirty** — capped December 2025, enforced, and
+first-comment placement buys no extra slots. `PublishPolicy.MAX_HASHTAGS` carries the date
+and the reason. Any number taken from a third party's rules has an expiry date; record when
+it was true and re-check it when behaviour surprises you.
 
 ⚠️ **A queued post's `scheduledAt` is derived, not chosen.** `queuePosition` is the truth;
 `QueuePlanner` computes the time and only `QueueRepository` may write it. Anything else

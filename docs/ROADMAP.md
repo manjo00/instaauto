@@ -75,6 +75,42 @@ Raised while looking at what an art account actually needs. Nothing here is star
 | **Duplicate a post** | **S** | For a series, most of the work is the same. The Done tab's "put back in queue" is nearly this already. | Certain |
 | **Save as draft** | **S** | Compose a post without committing it to the queue. Today the only options are queue it or pin it. | Certain |
 
+## ⏸ Awaiting a decision — the caption & title coach
+
+**Proposed 2026-09-07, not started. The owner was asked two questions and has not answered
+yet**, so nothing should be built until they do:
+
+1. Build it at all?
+2. Should it **ask them first** (two prompts before it says anything), or just offer
+   options and stay out of the way?
+
+**The constraint that shapes the whole design**, in the owner's words: *"I want to learn how
+to write them myself so naming my pieces at least comes from me."* This is a **coach, not a
+ghostwriter** — success is the owner needing it less each month.
+
+Sketch as proposed:
+
+1. Asks the owner two questions first — *"What was hard about this one?"* and *"What's it
+   about, in three words?"* — so their words exist before any suggestion does.
+2. Offers three title options, each **labelled with which of the five sources it came from**
+   (the feeling / a detail / time or place / what it almost was / borrowed language), so the
+   method is being taught rather than the answer handed over. Sources are in
+   `docs/manual/captions-and-hashtags.md`.
+3. Offers five tags **labelled by portfolio role with post volumes**, teaching the 2 niche /
+   2 topic / 1 flexible shape.
+4. Nothing auto-fills. Everything editable or ignorable.
+5. Reads previous captions from `post_history` so suggestions sound like the owner.
+
+**Technically:** Claude API (`claude-opus-5`, vision — the artwork is already in app
+storage), roughly **$0.02 per post, about a dollar a year** at one post a week. The API key
+would ship inside the APK, which the owner has accepted because **they are not publishing
+the app**. Read the `claude-api` skill before writing any of it.
+
+| Item | Size | Notes |
+|---|---|---|
+| **Caption & title coach** | **M** | The above. Blocked on the owner's answer. |
+| **Working notes per post** | **S** | A scratch field to add to *while painting*, implementing the "write the caption while you work" habit. No API, no key, no cost — attacks the cause rather than the symptom, and was the recommended first step. |
+
 ## Technical debt
 
 Ordered by how likely it is to bite.
