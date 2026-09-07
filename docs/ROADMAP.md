@@ -27,8 +27,8 @@ Nothing here is built. Sub-items so it can be taken in pieces:
 | Item | Size | Notes |
 |---|---|---|
 | **In-app manual** | **M** | A feature isn't finished until the manual describes it — this is the debt for everything built so far. The queue's entries are already written (`docs/manual/queue.md`); the screen that renders them is not. Sketch below. |
-| **History screen** | **S** | `post_history` is written on every publish and never shown. Success/failure, when, why. |
-| **Hashtag preset screen** | **S** | The table and repository exist; there is no UI to create or edit presets, so the picker on the compose screen is always empty. |
+| ~~History screen~~ | — | **Done 2026-09-07** — the Done tab. |
+| **Hashtag preset screen** | **S** | The table and repository exist; there is no UI to create or edit presets, so the picker on the compose screen is always empty. **Half-built already — the cheapest real feature left.** |
 | **Retry/backoff tuning** | **S** | `MAX_RETRIES = 4` was chosen, not measured. |
 | **Empty/error states** | **S** | Several screens assume the happy path. |
 | **App icon** | **S** | Still the default adaptive placeholder. |
@@ -61,6 +61,19 @@ Decisions, not bugs. Worth revisiting only if they prove annoying in use.
 | The catch-up window is queue-wide, not per post | It is a property of the slot ("is Monday 7pm still open?"). Per-post windows would make "which post decides" unanswerable. | **M** |
 | No shuffle | The owner asked for control over order, not the absence of it. | **S** |
 | Slots have no rules | "Saturdays are Reels only", "skip if the last post was a carousel" — no evidence yet that any of this is wanted. | **M** |
+
+## Ideas worth considering (2026-09-07)
+
+Raised while looking at what an art account actually needs. Nothing here is started.
+
+| Idea | Size | Why it might matter | Confidence |
+|---|---|---|---|
+| **Hashtag preset screen** | **S** | The owner's own suggestion, and the data layer is already there. One screen to create/edit named sets, and the compose picker stops being empty. | Certain — no API involved |
+| **Hashtags in the first comment** | **M** | A common art-account habit: keep the caption clean and put 20 tags in the first comment instead. Would need `POST /{ig-media-id}/comments` **and** the `instagram_business_manage_comments` permission, which this app does not currently request. | **Unverified** — check the permission is grantable under Business Login before designing |
+| **Choose a Reel's cover frame** | **M** | Now that thumbnails pull a real frame, picking *which* frame becomes the Instagram cover is the natural next step. The container API appears to take a `thumb_offset`. | **Unverified** — confirm against the live API first |
+| **Caption sign-off / templates** | **S** | Same idea as hashtag presets applied to the caption: a saved block appended to every post. | Certain |
+| **Duplicate a post** | **S** | For a series, most of the work is the same. The Done tab's "put back in queue" is nearly this already. | Certain |
+| **Save as draft** | **S** | Compose a post without committing it to the queue. Today the only options are queue it or pin it. | Certain |
 
 ## Technical debt
 
