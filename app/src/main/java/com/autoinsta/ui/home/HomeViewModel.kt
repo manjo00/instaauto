@@ -3,6 +3,7 @@ package com.autoinsta.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.autoinsta.data.db.entities.QueueSettingsEntity
+import com.autoinsta.data.db.relations.DonePostRow
 import com.autoinsta.data.db.relations.ScheduledPostWithMedia
 import com.autoinsta.data.repository.PostRepository
 import com.autoinsta.data.repository.QueueRepository
@@ -71,6 +72,14 @@ class HomeViewModel(
             initialValue = false,
         )
 
+    /** Everything that has already been through the publisher — the Done tab. */
+    val donePosts: StateFlow<List<DonePostRow>> =
+        queueRepository.observeDone().stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
     private val _canScheduleExact = MutableStateFlow(true)
 
     /** False when Android will not honour to-the-minute alarms; the queue warns. */
@@ -88,6 +97,16 @@ class HomeViewModel(
 
     fun deletePost(postId: Long) {
         viewModelScope.launch { postRepository.deletePost(postId) }
+    }
+
+    /** Put a finished post back at the end of the pool. */
+    fun returnToQueue(postId: Long) {
+        viewModelScope.launch { queueRepository.returnToQueue(postId) }
+    }
+
+    /** Publish a finished post again, right now, without waiting for a slot. */
+    fun postNow(postId: Long) {
+        viewModelScope.launch { queueRepository.postNow(postId) }
     }
 
     // ── Dragging ───────────────────────────────────────────────────────────

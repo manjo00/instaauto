@@ -19,7 +19,7 @@ Last updated: 2026-09-03
 | 4 — Account connect | Instagram login via Custom Tabs; 60-day token, auto-renewed | 59 unit + 28 instrumented on the Fold 7; **connected to the real account**, token encrypted, weekly renewal job verified in `dumpsys jobscheduler` |
 | 5a — Real publishing | Cloudinary upload + Graph API publish; image / Reel / carousel | 107 unit + 31 instrumented; **a real post reached the live account**; PNG→JPEG and 9:16→4:5 fitting proven against live Cloudinary |
 | 5b — Fitting editor | Per-image preview, manual crop against Instagram's frame, pad/crop choice | 119 unit + 33 instrumented; schema v3 with migration tests |
-| 5c — Posting queue | Recurring slots + an ordered pool; drag to reorder, catch-up window, pause | 169 unit + 52 instrumented, lint 0 errors; schema v4 with migration tests; drag proven end to end on the device |
+| 5c — Posting queue | Recurring slots + an ordered pool; drag to reorder, catch-up window, pause, Done tab | 173 unit + 52 instrumented, lint 0 errors; schema v4 with migration tests; drag proven end to end on the device |
 
 ## In flight
 
@@ -64,6 +64,27 @@ survives. **Not yet tried on real artwork by the owner** — that is still open.
 ---
 
 ## Gotchas — root cause, not just the fix
+
+### 🔴 Never run `connectedAndroidTest` on the owner's own device
+
+**What happened, twice:** the task uninstalls the app when it finishes. On 2026-09-03 the
+session crashed between the uninstall and the reinstall, and the owner was left with **no
+app on their tablet at all** — no queue, no schedule, no login. Their words: *"imagine you
+reach use limit before reinstalling it."*
+
+**Why it is worse than it looks:** Android auto-backup then restores an *old* Room snapshot
+on reinstall, so the schedule silently reverts to whatever it was hours ago. After the
+crash the Wednesday 19:00 slot was gone and a deleted Thursday 10:00 slot was back.
+
+**Rule:** the tablet is the owner's *production* device, not a test rig.
+- Unit tests (`testDebugUnitTest`) run on the laptop — always fine.
+- `assembleDebug` + `adb install -r` keeps app data — always fine.
+- `connectedDebugAndroidTest` **wipes the app** — never run it without asking first, and
+  never leave it uninstalled at the end of a turn.
+
+The way out is to stop going through Gradle for instrumented tests: build the test APK,
+install both with `adb install -r`, and run `adb shell am instrument` directly. That has no
+uninstall step. Logged in ROADMAP.
 
 ### 🔴 Photo Picker URIs expire with the process
 **Symptom:** would have surfaced as a `SecurityException` in `PostWorker` at publish

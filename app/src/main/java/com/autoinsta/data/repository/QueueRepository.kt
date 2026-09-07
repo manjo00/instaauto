@@ -5,8 +5,12 @@ import com.autoinsta.data.db.dao.QueueSettingsDao
 import com.autoinsta.data.db.dao.ScheduledPostDao
 import com.autoinsta.data.db.entities.PostingSlotEntity
 import com.autoinsta.data.db.entities.QueueSettingsEntity
+import com.autoinsta.data.db.relations.DonePostRow
 import com.autoinsta.data.db.relations.ScheduledPostWithMedia
 import com.autoinsta.domain.QueuePlanner
+import com.autoinsta.domain.model.MissedPostPolicy
+import com.autoinsta.domain.model.PostStatus
+import com.autoinsta.domain.model.TimingMode
 import com.autoinsta.scheduler.PostScheduler
 import java.time.DayOfWeek
 import java.time.ZoneId
@@ -49,6 +53,9 @@ class QueueRepository(
     /** Posts pinned to a time by hand — shown separately, never reordered. */
     fun observeFixedScheduled(): Flow<List<ScheduledPostWithMedia>> =
         postDao.observeFixedScheduled()
+
+    /** Everything that has been through the publisher, newest first. */
+    fun observeDone(): Flow<List<DonePostRow>> = postDao.observeDone()
 
     fun observeSlots(): Flow<List<PostingSlotEntity>> = slotDao.observeAll()
 
@@ -142,6 +149,56 @@ class QueueRepository(
             postDao.clearQueuePosition(postId)
         }
         replan()
+    }
+
+    // ── Bringing a finished post back ──────────────────────────────────────
+
+    /**
+     * Put a posted or failed piece back in the pool, at the end.
+     *
+     * Any hold is cleared: "wait for the next slot instead" answered a question about a
+     * slot that is long gone.
+     */
+    suspend fun returnToQueue(postId: Long) {
+        val existing = postDao.getById(postId) ?: return
+        postDao.update(
+            existing.post.copy(
+                status = PostStatus.SCHEDULED,
+                timingMode = TimingMode.QUEUED,
+                queuePosition = null,
+                notBeforeMillis = null,
+            )
+        )
+        addToQueue(postId)
+    }
+
+    /**
+     * Publish a finished post again, now, without waiting for a slot.
+     *
+     * It becomes a **fixed-time** post due immediately, which is what makes it independent
+     * of the queue: it takes no slot, it does not shuffle the pool, and — deliberately —
+     * pausing the queue does not hold it back, because this is a direct instruction rather
+     * than a rhythm.
+     *
+     * The alarm is armed rather than the worker enqueued directly, so it travels the exact
+     * path a scheduled post does. `alarmTimeFor` clamps it to a few seconds out.
+     */
+    suspend fun postNow(postId: Long) {
+        val existing = postDao.getById(postId) ?: return
+        val now = clock()
+        postDao.update(
+            existing.post.copy(
+                status = PostStatus.SCHEDULED,
+                timingMode = TimingMode.FIXED,
+                queuePosition = null,
+                notBeforeMillis = null,
+                scheduledAt = now,
+                // It was asked for by hand, this second; "too late" cannot apply.
+                missedPolicy = MissedPostPolicy.POST_ANYWAY,
+            )
+        )
+        replan()
+        postScheduler.schedule(postId, now, now)
     }
 
     // ── The schedule ───────────────────────────────────────────────────────

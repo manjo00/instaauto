@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import com.autoinsta.data.db.entities.ScheduledPostEntity
+import com.autoinsta.data.db.relations.DonePostRow
 import com.autoinsta.data.db.relations.ScheduledPostWithMedia
 import com.autoinsta.domain.model.PostStatus
 import kotlinx.coroutines.flow.Flow
@@ -142,6 +143,43 @@ interface ScheduledPostDao {
      */
     @Query("UPDATE scheduled_posts SET queuePosition = NULL WHERE id = :postId")
     suspend fun clearQueuePosition(postId: Long)
+
+    // ── Done: everything that has been through the publisher ───────────────
+
+    /**
+     * Finished posts, newest first, one row each with its **latest** outcome.
+     *
+     * The two correlated sub-selects pick the most recent history row and the first media
+     * item per post. Doing it in SQL keeps this a single observable query — the
+     * alternative, reading history separately per post, would re-query on every emission
+     * of a list that changes whenever anything publishes.
+     */
+    @Query("""
+        SELECT p.id            AS id,
+               p.postType      AS postType,
+               p.status        AS status,
+               p.caption       AS caption,
+               p.scheduledAt   AS scheduledAt,
+               h.postedAt      AS postedAt,
+               h.instagramMediaId AS instagramMediaId,
+               h.errorMessage  AS errorMessage,
+               (SELECT COUNT(*) FROM post_history
+                 WHERE postId = p.id AND status = 'FAILED') AS failedAttempts,
+               m.localUri      AS localUri,
+               m.mediaType     AS mediaType
+        FROM scheduled_posts p
+        LEFT JOIN post_history h ON h.id = (
+            SELECT id FROM post_history WHERE postId = p.id
+             ORDER BY postedAt DESC, id DESC LIMIT 1
+        )
+        LEFT JOIN media_items m ON m.id = (
+            SELECT id FROM media_items WHERE postId = p.id
+             ORDER BY orderIndex ASC LIMIT 1
+        )
+        WHERE p.status IN ('POSTED', 'FAILED')
+        ORDER BY COALESCE(h.postedAt, p.scheduledAt) DESC
+    """)
+    fun observeDone(): Flow<List<DonePostRow>>
 }
 
 /** Row shape for [ScheduledPostDao.getNotBeforeHolds]. */

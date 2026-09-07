@@ -41,6 +41,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -50,6 +52,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -111,6 +114,9 @@ fun HomeScreen(
     )
 
     val queue by viewModel.queue.collectAsState()
+    val donePosts by viewModel.donePosts.collectAsState()
+    // Survives rotation and folding — losing your place on a tablet is jarring.
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     val fixedPosts by viewModel.fixedPosts.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val hasSlots by viewModel.hasSlots.collectAsState()
@@ -175,138 +181,170 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onCreatePost,
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("New post") },
-            )
+            if (selectedTab == TAB_QUEUE) {
+                ExtendedFloatingActionButton(
+                    onClick = onCreatePost,
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("New post") },
+                )
+            }
         },
     ) { padding ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                16.dp,
-                padding.calculateTopPadding() + 16.dp,
-                16.dp,
-                96.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = padding.calculateTopPadding()),
         ) {
-            if (!canScheduleExact) {
-                item(key = "exact-alarm-banner") {
-                    ExactAlarmBanner(onFixClick = { openExactAlarmSettings(context) })
+            TabRow(selectedTabIndex = selectedTab) {
+                Tab(
+                    selected = selectedTab == TAB_QUEUE,
+                    onClick = { selectedTab = TAB_QUEUE },
+                    text = { Text("Queue") },
+                )
+                Tab(
+                    selected = selectedTab == TAB_DONE,
+                    onClick = { selectedTab = TAB_DONE },
+                    text = { Text("Done") },
+                )
+            }
+
+            if (selectedTab == TAB_DONE) {
+                DoneList(
+                    posts = donePosts,
+                    contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 32.dp),
+                    onReturnToQueue = { id ->
+                        viewModel.returnToQueue(id)
+                        // Show where it went, rather than leaving it looking unchanged.
+                        selectedTab = TAB_QUEUE
+                    },
+                    onPostNow = viewModel::postNow,
+                )
+                // Legal because Compose's Column is an inline function, so this returns
+                // from the Scaffold content lambda rather than just the Column's.
+                return@Scaffold
+            }
+
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 96.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (!canScheduleExact) {
+                    item(key = "exact-alarm-banner") {
+                        ExactAlarmBanner(onFixClick = { openExactAlarmSettings(context) })
+                    }
                 }
-            }
 
-            if (settings.paused) {
-                item(key = "paused-banner") { PausedBanner(onOpenSchedule = onOpenSchedule) }
-            }
-
-            if (queue.isNotEmpty() && !hasSlots) {
-                item(key = "no-slots-banner") { NoSlotsBanner(onOpenSchedule = onOpenSchedule) }
-            }
-
-            if (queue.isEmpty() && fixedPosts.isEmpty()) {
-                item(key = "empty") { EmptyQueue() }
-            }
-
-            if (queue.isNotEmpty()) {
-                item(key = "queue-header") {
-                    SectionHeader(
-                        title = "Queue",
-                        subtitle = "Goes out in this order. Press and hold to move one.",
-                    )
+                if (settings.paused) {
+                    item(key = "paused-banner") { PausedBanner(onOpenSchedule = onOpenSchedule) }
                 }
-                itemsIndexed(
-                    items = queue,
-                    key = { _, item -> "$QUEUE_KEY_PREFIX${item.post.id}" },
-                ) { index, item ->
-                    val isDragging = draggingId == item.post.id
 
-                    val startDrag: (Offset) -> Unit = {
-                        val info = listState.layoutInfo.visibleItemsInfo
-                            .firstOrNull { it.key == "$QUEUE_KEY_PREFIX${item.post.id}" }
-                        // The card's centre, not the touch point, so grabbing the handle
-                        // and pressing anywhere on the card behave identically.
-                        pointerY = ((info?.offset ?: 0) + (info?.size ?: 0) / 2).toFloat()
-                        dragTranslation = 0f
-                        targetIndex = index
-                        draggingId = item.post.id
-                        viewModel.beginDrag()
-                    }
-                    val moveDrag: (Float) -> Unit = { dy ->
-                        dragTranslation += dy
-                        pointerY += dy
-                        targetIndex = DragReorder.targetIndexFor(index, pointerY.toInt(), queueBounds())
-                        autoScroll = edgeScrollFor(pointerY, listState)
-                    }
-                    val finishDrag = {
-                        viewModel.dropAt(index, targetIndex.takeIf { it >= 0 } ?: index)
-                        endDrag()
-                    }
-                    val abortDrag = {
-                        viewModel.cancelDrag()
-                        endDrag()
-                    }
+                if (queue.isNotEmpty() && !hasSlots) {
+                    item(key = "no-slots-banner") { NoSlotsBanner(onOpenSchedule = onOpenSchedule) }
+                }
 
-                    QueueCard(
-                        item = item,
-                        whenLabel = queueWhenLabel(
-                            atMillis = item.post.scheduledAt,
-                            paused = settings.paused,
-                            hasSlots = hasSlots,
-                        ),
-                        isDragging = isDragging,
-                        showDropLine = draggingId != null && !isDragging && targetIndex == index,
-                        onClick = { onEditPost(item.post.id) },
-                        onDeleteClick = { pendingDeleteId = item.post.id },
-                        onFireSoonClick = { viewModel.fireSoon(item.post.id) },
-                        handleModifier = Modifier.pointerInput(item.post.id) {
-                            detectDragGestures(
-                                onDragStart = startDrag,
-                                onDrag = { change, amount -> change.consume(); moveDrag(amount.y) },
-                                onDragEnd = finishDrag,
-                                onDragCancel = abortDrag,
-                            )
-                        },
-                        modifier = Modifier
-                            .zIndex(if (isDragging) 1f else 0f)
-                            .graphicsLayer {
-                                translationY = if (isDragging) dragTranslation else 0f
-                            }
-                            .pointerInput(item.post.id) {
-                                detectDragGesturesAfterLongPress(
+                if (queue.isEmpty() && fixedPosts.isEmpty()) {
+                    item(key = "empty") { EmptyQueue() }
+                }
+
+                if (queue.isNotEmpty()) {
+                    item(key = "queue-header") {
+                        SectionHeader(
+                            title = "Queue",
+                            subtitle = "Goes out in this order. Press and hold to move one.",
+                        )
+                    }
+                    itemsIndexed(
+                        items = queue,
+                        key = { _, item -> "$QUEUE_KEY_PREFIX${item.post.id}" },
+                    ) { index, item ->
+                        val isDragging = draggingId == item.post.id
+
+                        val startDrag: (Offset) -> Unit = {
+                            val info = listState.layoutInfo.visibleItemsInfo
+                                .firstOrNull { it.key == "$QUEUE_KEY_PREFIX${item.post.id}" }
+                            // The card's centre, not the touch point, so grabbing the handle
+                            // and pressing anywhere on the card behave identically.
+                            pointerY = ((info?.offset ?: 0) + (info?.size ?: 0) / 2).toFloat()
+                            dragTranslation = 0f
+                            targetIndex = index
+                            draggingId = item.post.id
+                            viewModel.beginDrag()
+                        }
+                        val moveDrag: (Float) -> Unit = { dy ->
+                            dragTranslation += dy
+                            pointerY += dy
+                            targetIndex = DragReorder.targetIndexFor(index, pointerY.toInt(), queueBounds())
+                            autoScroll = edgeScrollFor(pointerY, listState)
+                        }
+                        val finishDrag = {
+                            viewModel.dropAt(index, targetIndex.takeIf { it >= 0 } ?: index)
+                            endDrag()
+                        }
+                        val abortDrag = {
+                            viewModel.cancelDrag()
+                            endDrag()
+                        }
+
+                        QueueCard(
+                            item = item,
+                            whenLabel = queueWhenLabel(
+                                atMillis = item.post.scheduledAt,
+                                paused = settings.paused,
+                                hasSlots = hasSlots,
+                            ),
+                            isDragging = isDragging,
+                            showDropLine = draggingId != null && !isDragging && targetIndex == index,
+                            onClick = { onEditPost(item.post.id) },
+                            onDeleteClick = { pendingDeleteId = item.post.id },
+                            onFireSoonClick = { viewModel.fireSoon(item.post.id) },
+                            handleModifier = Modifier.pointerInput(item.post.id) {
+                                detectDragGestures(
                                     onDragStart = startDrag,
-                                    onDrag = { change, amount ->
-                                        change.consume(); moveDrag(amount.y)
-                                    },
+                                    onDrag = { change, amount -> change.consume(); moveDrag(amount.y) },
                                     onDragEnd = finishDrag,
                                     onDragCancel = abortDrag,
                                 )
                             },
-                    )
+                            modifier = Modifier
+                                .zIndex(if (isDragging) 1f else 0f)
+                                .graphicsLayer {
+                                    translationY = if (isDragging) dragTranslation else 0f
+                                }
+                                .pointerInput(item.post.id) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = startDrag,
+                                        onDrag = { change, amount ->
+                                            change.consume(); moveDrag(amount.y)
+                                        },
+                                        onDragEnd = finishDrag,
+                                        onDragCancel = abortDrag,
+                                    )
+                                },
+                        )
+                    }
                 }
-            }
 
-            if (fixedPosts.isNotEmpty()) {
-                item(key = "fixed-header") {
-                    SectionHeader(
-                        title = "Set times",
-                        subtitle = "Pinned to a date. The queue leaves these alone.",
-                    )
-                }
-                items(fixedPosts, key = { "$FIXED_KEY_PREFIX${it.post.id}" }) { item ->
-                    QueueCard(
-                        item = item,
-                        whenLabel = momentLabel(item.post.scheduledAt),
-                        isDragging = false,
-                        showDropLine = false,
-                        onClick = { onEditPost(item.post.id) },
-                        onDeleteClick = { pendingDeleteId = item.post.id },
-                        onFireSoonClick = { viewModel.fireSoon(item.post.id) },
-                        handleModifier = null,
-                    )
+                if (fixedPosts.isNotEmpty()) {
+                    item(key = "fixed-header") {
+                        SectionHeader(
+                            title = "Set times",
+                            subtitle = "Pinned to a date. The queue leaves these alone.",
+                        )
+                    }
+                    items(fixedPosts, key = { "$FIXED_KEY_PREFIX${it.post.id}" }) { item ->
+                        QueueCard(
+                            item = item,
+                            whenLabel = momentLabel(item.post.scheduledAt),
+                            isDragging = false,
+                            showDropLine = false,
+                            onClick = { onEditPost(item.post.id) },
+                            onDeleteClick = { pendingDeleteId = item.post.id },
+                            onFireSoonClick = { viewModel.fireSoon(item.post.id) },
+                            handleModifier = null,
+                        )
+                    }
                 }
             }
         }
@@ -330,6 +368,9 @@ fun HomeScreen(
         )
     }
 }
+
+private const val TAB_QUEUE = 0
+private const val TAB_DONE = 1
 
 private const val QUEUE_KEY_PREFIX = "q-"
 private const val FIXED_KEY_PREFIX = "f-"

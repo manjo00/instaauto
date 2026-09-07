@@ -110,6 +110,34 @@ because with those, the time was the whole point.
 
 ---
 
+## The Done tab — everything that has gone out
+
+**Keywords:** history, posted, what went out, failed, didn't post, past posts, send again,
+repost, post it again, log
+
+Along the top of the queue screen there are two tabs: **Queue** and **Done**. Done lists
+everything that has been through the publisher, newest first — successes and failures both.
+
+Each row tells you what happened: *"Posted Wed, Sep 9 · 7:00 PM"*, or the reason it didn't
+go out in red. If a post failed a few times before it worked, the row says
+*"after 1 failed attempt"* rather than filling the list with entries.
+
+**One row per post, not per attempt.** A piece that failed on Tuesday and went out on
+Wednesday is one piece of art with a bumpy history, not two things.
+
+Two buttons on every row:
+
+- **↩ Put back in the queue** — sends it to the back of the pool to take its turn again.
+- **⚡ Post now** — publishes it again straight away, without waiting for a slot. It
+  ignores the pause switch too, because you asked for it directly.
+
+**If it already went out, both buttons ask first.** You'll get *"This already went out on
+… Posting it now will put the same piece on your account twice."* That's a real duplicate
+on your real account, so it's worth reading before tapping.
+
+For a post that **failed**, there's no warning — nothing went out, so there's nothing to
+duplicate.
+
 ## Pausing
 
 **Keywords:** pause, stop posting, holiday, break, hiatus, turn off, hold everything
