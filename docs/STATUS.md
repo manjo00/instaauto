@@ -65,6 +65,37 @@ survives. **Not yet tried on real artwork by the owner** — that is still open.
 
 ## Gotchas — root cause, not just the fix
 
+### 🟡 The official Anthropic SDK works on Android but costs 6.9 MB — measured, then rejected
+
+**The question:** the caption coach needs one `POST /v1/messages`. Use `com.anthropic:anthropic-java`,
+which is the documented default, or Retrofit like the app's two other APIs?
+
+**Measured rather than assumed, 2026-09-07:**
+
+| | APK |
+|---|---|
+| Baseline | 18.9 MB |
+| With `anthropic-java:2.34.0` | **25.8 MB** (+6.9, +37%) |
+| With a hand-written Retrofit client | 18.8 MB |
+
+It also failed to package until three `META-INF` excludes were added
+(`DEPENDENCIES`, `LICENSE*`, `NOTICE*` — the first is the one that actually breaks it),
+and it pulls Jackson in alongside the kotlinx.serialization already in the app: two JSON
+libraries for one endpoint.
+
+**Decision: Retrofit**, matching `InstagramApi` and `CloudinaryUploader`. Seven megabytes
+and a second JSON stack is a poor trade for ~60 lines of DTO on a personal app.
+
+**The wire shapes were verified against the live API before being written**, not recalled —
+`output_config: {effort, format: {type: "json_schema", schema}}` was confirmed with a real
+call. Worth repeating for any hand-modelled API: one throwaway request costs pennies and
+removes all the guessing.
+
+**Also learned in that call:** Opus 5 runs thinking by default, and a tight `max_tokens`
+gets consumed by it — the response comes back with an *empty* text block rather than an
+error, which reads exactly like a bug in our own parsing. `AnthropicApi.MAX_TOKENS` is set
+with headroom and says why.
+
 ### 🔴 A platform constant is only true on the day you wrote it down
 
 **Symptom:** none visible — the app would have quietly scheduled posts Instagram then

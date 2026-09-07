@@ -64,6 +64,14 @@ object NetworkModule {
         retrofit.create(InstagramApi::class.java)
     }
 
+    /**
+     * Claude, for the caption coach. Uses the same Retrofit instance — every call passes
+     * an absolute @Url, so the Instagram base URL is irrelevant here.
+     */
+    val anthropicApi: AnthropicApi by lazy {
+        retrofit.create(AnthropicApi::class.java)
+    }
+
     val cloudinaryUploader: CloudinaryUploader by lazy {
         CloudinaryUploader(client = sharedClient)
     }

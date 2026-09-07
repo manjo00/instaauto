@@ -22,6 +22,21 @@ interface PostHistoryDao {
     @Query("SELECT * FROM post_history WHERE postId = :postId ORDER BY postedAt DESC")
     suspend fun getForPost(postId: Long): List<PostHistoryEntity>
 
+    /**
+     * Captions that actually went out, newest first — the caption coach reads these to
+     * match the owner's voice.
+     *
+     * Successes only, and history rows only. A draft sitting in the queue has not been
+     * written in anger yet, and a failed post's caption may be exactly the one that was
+     * being reworked; learning voice from either would teach the wrong thing.
+     */
+    @Query("""
+        SELECT caption FROM post_history
+        WHERE status = 'POSTED' AND TRIM(caption) != ''
+        ORDER BY postedAt DESC LIMIT :limit
+    """)
+    suspend fun recentCaptions(limit: Int): List<String>
+
     @Query("DELETE FROM post_history WHERE id = :historyId")
     suspend fun deleteById(historyId: Long)
 

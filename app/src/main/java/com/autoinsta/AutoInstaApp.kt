@@ -12,6 +12,7 @@ import com.autoinsta.data.repository.AccountRepository
 import com.autoinsta.data.repository.HistoryRepository
 import com.autoinsta.data.repository.PostRepository
 import com.autoinsta.data.repository.PresetRepository
+import com.autoinsta.data.repository.CoachRepository
 import com.autoinsta.data.repository.PublishRepository
 import com.autoinsta.data.repository.QueueRepository
 import com.autoinsta.scheduler.Notifier
@@ -102,6 +103,17 @@ class AutoInstaApp : Application(), ImageLoaderFactory {
     /** Puts a scheduled post on Instagram. Used by PostWorker when a post comes due. */
     val publishRepository: PublishRepository
         get() = publishRepositoryOverride ?: realPublishRepository
+
+    /**
+     * The caption coach. Optional by construction — with no API key configured it reports
+     * itself unavailable and the UI simply doesn't offer it.
+     */
+    val coachRepository: CoachRepository by lazy {
+        CoachRepository(
+            api = NetworkModule.anthropicApi,
+            historyDao = database.postHistoryDao(),
+        )
+    }
 
     val historyRepository: HistoryRepository by lazy {
         HistoryRepository(historyDao = database.postHistoryDao())
