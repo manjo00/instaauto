@@ -133,8 +133,14 @@ piece, they stay — the set's tags are appended after them. Tags you already ha
 skipped, so tapping the same set twice does nothing rather than doubling everything.
 `#Art` and `#art` count as the same tag.
 
-Under the box you'll see **"12 of 30 tags"**. Thirty is Instagram's limit; go over and it
-turns red. You can still save a set that's over the limit — trim it on the post.
+Under the box you'll see **"3 of 5 tags"**. **Five is Instagram's limit** — it dropped from
+thirty in December 2025 and it's enforced, not advice. Go over and the box turns red; the
+extra tags get dropped or the post is refused. Putting them in the first comment does *not*
+buy extra slots.
+
+Because of that, **don't build one big set and use it on everything.** Repeating the same
+five tags on every post reads as spam to the algorithm. Keep a few small sets — one per
+kind of piece — and pick the one that fits.
 
 ## The Done tab — everything that has gone out
 

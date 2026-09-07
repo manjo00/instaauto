@@ -274,8 +274,9 @@ private fun NoPresetsYet() {
             modifier = Modifier.padding(top = 16.dp),
         )
         Text(
-            text = "Save the hashtags you use often — your usual art tags, a set for " +
-                "timelapses — and add them to a post in one tap instead of retyping them.",
+            text = "Instagram allows five hashtags per post, and reusing the same five " +
+                "everywhere reads as spam. Save a few small sets instead — one per kind " +
+                "of piece — and pick the one that fits.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp),

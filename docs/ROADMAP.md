@@ -69,7 +69,7 @@ Raised while looking at what an art account actually needs. Nothing here is star
 | Idea | Size | Why it might matter | Confidence |
 |---|---|---|---|
 | ~~Hashtag preset screen~~ | — | **Done 2026-09-07** — and applying a set *merges* rather than replaces, so tags typed for the specific piece survive. | — |
-| **Hashtags in the first comment** | **M** | A common art-account habit: keep the caption clean and put 20 tags in the first comment instead. Would need `POST /{ig-media-id}/comments` **and** the `instagram_business_manage_comments` permission, which this app does not currently request. | **Unverified** — check the permission is grantable under Business Login before designing |
+| ~~Hashtags in the first comment~~ | — | **Dropped 2026-09-07.** Instagram's five-hashtag cap applies across caption *and* comments — first-comment placement buys no extra slots, so the whole point of the idea is gone. | Verified against three sources |
 | **Choose a Reel's cover frame** | **M** | Now that thumbnails pull a real frame, picking *which* frame becomes the Instagram cover is the natural next step. The container API appears to take a `thumb_offset`. | **Unverified** — confirm against the live API first |
 | **Caption sign-off / templates** | **S** | Same idea as hashtag presets applied to the caption: a saved block appended to every post. | Certain |
 | **Duplicate a post** | **S** | For a series, most of the work is the same. The Done tab's "put back in queue" is nearly this already. | Certain |

@@ -65,6 +65,30 @@ survives. **Not yet tried on real artwork by the owner** — that is still open.
 
 ## Gotchas — root cause, not just the fix
 
+### 🔴 A platform constant is only true on the day you wrote it down
+
+**Symptom:** none visible — the app would have quietly scheduled posts Instagram then
+stripped or refused. Caught 2026-09-07 because the owner said *"I think now Instagram only
+allows 5 hashtags"*, which contradicted `PublishPolicy.MAX_HASHTAGS = 30`.
+
+**Root cause:** Instagram capped hashtags at **five** in December 2025 (announced by
+@Creators, confirmed by Adam Mosseri). It is enforced, applies to posts and Reels, and
+first-comment placement buys no extra slots. Thirty had been right for years, was copied
+into the code as a constant, and nothing in the app could notice it had stopped being true.
+
+**Fix:** `MAX_HASHTAGS = 5`, with the date and the reason written next to it, and the tests
+driven off the constant rather than the literal so the two cannot drift apart again.
+
+**Knock-on:** it also reshapes the hashtag-set feature built the same day. A saved set of
+thirty tags is now useless, and reusing the same five on every post is itself penalised —
+so the UI copy now argues for several small themed sets instead of one big one. And it
+kills the "hashtags in the first comment" idea in ROADMAP, which was recorded as unverified
+and turns out to be worth nothing.
+
+**Rule:** any number taken from a third party's rules is a fact with an expiry date. Record
+*when* it was true and *where* it came from, and re-check it when behaviour surprises you.
+The owner noticing this before the code did is the pattern to expect.
+
 ### 🔴 Never run `connectedAndroidTest` on the owner's own device
 
 **What happened, twice:** the task uninstalls the app when it finishes. On 2026-09-03 the

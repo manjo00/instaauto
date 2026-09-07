@@ -123,17 +123,28 @@ class PublishPolicyTest {
     }
 
     @Test
-    fun `thirty hashtags is allowed, thirty-one is not`() {
-        val thirty = (1..30).joinToString(" ") { "#tag$it" }
-        val thirtyOne = (1..31).joinToString(" ") { "#tag$it" }
-        assertEquals(CaptionVerdict.Ok, PublishPolicy.checkCaption("", thirty))
-        assertTrue(PublishPolicy.checkCaption("", thirtyOne) is CaptionVerdict.TooManyHashtags)
+    fun `five hashtags is allowed, six is not`() {
+        // Instagram's cap since December 2025. Driven off the constant so the two can
+        // never drift apart the way they did when the platform changed under us.
+        val atLimit = (1..PublishPolicy.MAX_HASHTAGS).joinToString(" ") { "#tag$it" }
+        val overLimit = (1..PublishPolicy.MAX_HASHTAGS + 1).joinToString(" ") { "#tag$it" }
+
+        assertEquals(CaptionVerdict.Ok, PublishPolicy.checkCaption("", atLimit))
+        assertTrue(PublishPolicy.checkCaption("", overLimit) is CaptionVerdict.TooManyHashtags)
+    }
+
+    @Test
+    fun `the hashtag limit is five, not the thirty Instagram used to allow`() {
+        // Pinned deliberately. This number came from the platform, changed under us on
+        // 2026-09-07, and the app happily scheduled 30-tag posts until it did.
+        assertEquals(5, PublishPolicy.MAX_HASHTAGS)
     }
 
     @Test
     fun `hashtags are counted across caption and hashtags together`() {
-        val inCaption = (1..20).joinToString(" ") { "#a$it" }
-        val inHashtags = (1..15).joinToString(" ") { "#b$it" }
+        // Three in each half is fine alone and over the limit together.
+        val inCaption = (1..3).joinToString(" ") { "#a$it" }
+        val inHashtags = (1..3).joinToString(" ") { "#b$it" }
         assertTrue(PublishPolicy.checkCaption(inCaption, inHashtags) is CaptionVerdict.TooManyHashtags)
     }
 
@@ -153,7 +164,7 @@ class PublishPolicyTest {
 
     @Test
     fun `non-latin hashtags are counted - art accounts are not english-only`() {
-        val arabic = (1..31).joinToString(" ") { "#فن$it" }
+        val arabic = (1..PublishPolicy.MAX_HASHTAGS + 1).joinToString(" ") { "#فن$it" }
         assertTrue(PublishPolicy.checkCaption("", arabic) is CaptionVerdict.TooManyHashtags)
     }
 
@@ -161,7 +172,7 @@ class PublishPolicyTest {
     fun `every rejection explains itself in plain words`() {
         listOf(
             PublishPolicy.checkCaption("x".repeat(2300), ""),
-            PublishPolicy.checkCaption("", (1..31).joinToString(" ") { "#t$it" }),
+            PublishPolicy.checkCaption("", (1..PublishPolicy.MAX_HASHTAGS + 1).joinToString(" ") { "#t$it" }),
             PublishPolicy.checkCaption((1..21).joinToString(" ") { "@u$it" }, ""),
         ).forEach { verdict ->
             val text = PublishPolicy.explain(verdict)

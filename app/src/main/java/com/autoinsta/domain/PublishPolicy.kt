@@ -155,7 +155,20 @@ object PublishPolicy {
     // ── What Instagram accepts in a caption ────────────────────────────────
 
     const val MAX_CAPTION_CHARS = 2200
-    const val MAX_HASHTAGS = 30
+
+    /**
+     * **Five, not thirty.**
+     *
+     * Instagram capped hashtags at five in December 2025 — announced by @Creators and
+     * confirmed by Adam Mosseri. It is a hard platform limit, not advice: go over and the
+     * extras are dropped or publishing is refused. It applies to posts and Reels alike,
+     * and putting tags in the first comment does **not** buy extra slots.
+     *
+     * This was 30 until 2026-09-07, which is the number Instagram enforced for years. A
+     * constant copied from a platform's documentation is only true on the day it is
+     * written down; this one now carries the date and the reason.
+     */
+    const val MAX_HASHTAGS = 5
     const val MAX_MENTIONS = 20
 
     sealed interface CaptionVerdict {
