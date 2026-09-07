@@ -44,6 +44,9 @@ android {
         buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"${secret("CLOUDINARY_CLOUD_NAME")}\"")
         buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"${secret("CLOUDINARY_UPLOAD_PRESET")}\"")
         buildConfigField("String", "OAUTH_REDIRECT_URI", "\"${secret("OAUTH_REDIRECT_URI", "https://manjo00.github.io/instaauto/oauth")}\"")
+        // Optional. Blank simply means the caption coach is switched off — the app is
+        // fully usable without it, so this must never become a build requirement.
+        buildConfigField("String", "ANTHROPIC_API_KEY", "\"${secret("ANTHROPIC_API_KEY")}\"")
     }
 
     buildTypes {
