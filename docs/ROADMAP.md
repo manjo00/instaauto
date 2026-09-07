@@ -28,7 +28,7 @@ Nothing here is built. Sub-items so it can be taken in pieces:
 |---|---|---|
 | **In-app manual** | **M** | A feature isn't finished until the manual describes it — this is the debt for everything built so far. The queue's entries are already written (`docs/manual/queue.md`); the screen that renders them is not. Sketch below. |
 | ~~History screen~~ | — | **Done 2026-09-07** — the Done tab. |
-| **Hashtag preset screen** | **S** | The table and repository exist; there is no UI to create or edit presets, so the picker on the compose screen is always empty. **Half-built already — the cheapest real feature left.** |
+| ~~Hashtag preset screen~~ | — | **Done 2026-09-07.** |
 | **Retry/backoff tuning** | **S** | `MAX_RETRIES = 4` was chosen, not measured. |
 | **Empty/error states** | **S** | Several screens assume the happy path. |
 | **App icon** | **S** | Still the default adaptive placeholder. |
@@ -68,7 +68,7 @@ Raised while looking at what an art account actually needs. Nothing here is star
 
 | Idea | Size | Why it might matter | Confidence |
 |---|---|---|---|
-| **Hashtag preset screen** | **S** | The owner's own suggestion, and the data layer is already there. One screen to create/edit named sets, and the compose picker stops being empty. | Certain — no API involved |
+| ~~Hashtag preset screen~~ | — | **Done 2026-09-07** — and applying a set *merges* rather than replaces, so tags typed for the specific piece survive. | — |
 | **Hashtags in the first comment** | **M** | A common art-account habit: keep the caption clean and put 20 tags in the first comment instead. Would need `POST /{ig-media-id}/comments` **and** the `instagram_business_manage_comments` permission, which this app does not currently request. | **Unverified** — check the permission is grantable under Business Login before designing |
 | **Choose a Reel's cover frame** | **M** | Now that thumbnails pull a real frame, picking *which* frame becomes the Instagram cover is the natural next step. The container API appears to take a `thumb_offset`. | **Unverified** — confirm against the live API first |
 | **Caption sign-off / templates** | **S** | Same idea as hashtag presets applied to the caption: a saved block appended to every post. | Certain |

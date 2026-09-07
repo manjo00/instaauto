@@ -114,6 +114,28 @@ because with those, the time was the whole point.
 
 ---
 
+## Saved hashtag sets
+
+**Keywords:** hashtags, tags, preset, saved set, reuse hashtags, same tags every time,
+retyping hashtags
+
+**Settings → Hashtag sets**, or **Manage sets** from the top-right of the Hashtags box on
+any post.
+
+Tap **New set**, give it a name ("Digital art", "Timelapses"), paste the tags, Save.
+Anything that isn't a #tag is dropped when you save, so you can paste a messy block with
+commas and line breaks and it comes out tidy.
+
+On a post, **Add a saved set** drops the tags into the Hashtags box.
+
+**It adds, it doesn't replace.** If you'd already typed two tags for that particular
+piece, they stay — the set's tags are appended after them. Tags you already have are
+skipped, so tapping the same set twice does nothing rather than doubling everything.
+`#Art` and `#art` count as the same tag.
+
+Under the box you'll see **"12 of 30 tags"**. Thirty is Instagram's limit; go over and it
+turns red. You can still save a set that's over the limit — trim it on the post.
+
 ## The Done tab — everything that has gone out
 
 **Keywords:** history, posted, what went out, failed, didn't post, past posts, send again,

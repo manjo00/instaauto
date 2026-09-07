@@ -77,7 +77,9 @@ import com.autoinsta.ui.components.openExactAlarmSettings
 import com.autoinsta.AutoInstaApp
 import com.autoinsta.data.db.entities.HashtagPresetEntity
 import com.autoinsta.domain.MediaFit
+import com.autoinsta.domain.HashtagSet
 import com.autoinsta.domain.PostValidator
+import com.autoinsta.domain.PublishPolicy
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.MissedPostPolicy
 import com.autoinsta.domain.model.TimingMode
@@ -98,6 +100,7 @@ import java.util.Locale
 fun ComposePostScreen(
     postId: Long?,
     onNavigateBack: () -> Unit,
+    onOpenPresets: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -227,10 +230,10 @@ fun ComposePostScreen(
 
             HashtagSection(
                 presets = state.presets,
-                selectedPresetId = state.selectedPresetId,
                 hashtags = state.hashtags,
-                onPresetSelected = viewModel::selectPreset,
+                onPresetApplied = viewModel::applyPreset,
                 onHashtagsChange = viewModel::setHashtags,
+                onManagePresets = onOpenPresets,
             )
 
             TimingModeSelector(
@@ -467,49 +470,61 @@ private fun AddMediaCard(onClick: () -> Unit) {
 @Composable
 private fun HashtagSection(
     presets: List<HashtagPresetEntity>,
-    selectedPresetId: Long?,
     hashtags: String,
-    onPresetSelected: (HashtagPresetEntity?) -> Unit,
+    onPresetApplied: (HashtagPresetEntity) -> Unit,
     onHashtagsChange: (String) -> Unit,
+    onManagePresets: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val selectedPreset = presets.find { it.id == selectedPresetId }
+    val tagCount = HashtagSet.count(hashtags)
+    val overLimit = tagCount > PublishPolicy.MAX_HASHTAGS
 
     Column {
-        Text("Hashtags", style = MaterialTheme.typography.labelLarge)
-        Spacer(8)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Hashtags",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f),
+            )
+            // Always reachable, including when there are no sets yet — otherwise there is
+            // no way to discover that saved sets exist at all.
+            TextButton(onClick = onManagePresets) {
+                Text(if (presets.isEmpty()) "Save a set" else "Manage sets")
+            }
+        }
+        Spacer(4)
 
         if (presets.isNotEmpty()) {
             Box {
-                OutlinedTextField(
-                    value = selectedPreset?.name ?: "No preset",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Preset") },
-                    trailingIcon = {
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Choose preset")
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { expanded = true },
-                )
+                OutlinedButton(
+                    onClick = { expanded = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Add a saved set", modifier = Modifier.weight(1f))
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                }
                 DropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
                     modifier = Modifier.fillMaxWidth(0.9f),
                 ) {
-                    DropdownMenuItem(
-                        text = { Text("No preset (free text)") },
-                        onClick = {
-                            onPresetSelected(null)
-                            expanded = false
-                        },
-                    )
                     presets.forEach { preset ->
                         DropdownMenuItem(
-                            text = { Text(preset.name) },
+                            text = {
+                                Column {
+                                    Text(preset.name)
+                                    Text(
+                                        text = "${HashtagSet.count(preset.hashtags)} tags",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
                             onClick = {
-                                onPresetSelected(preset)
+                                onPresetApplied(preset)
                                 expanded = false
                             },
                         )
@@ -526,7 +541,22 @@ private fun HashtagSection(
             placeholder = { Text("#digitalart #illustration") },
             minLines = 2,
             maxLines = 5,
+            isError = overLimit,
             modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = if (overLimit) {
+                "$tagCount tags — Instagram allows ${PublishPolicy.MAX_HASHTAGS}."
+            } else {
+                "$tagCount of ${PublishPolicy.MAX_HASHTAGS} tags"
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = if (overLimit) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.padding(top = 4.dp),
         )
     }
 }

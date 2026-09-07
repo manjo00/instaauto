@@ -63,6 +63,7 @@ import com.autoinsta.domain.TokenLifecycle
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onOpenSchedule: () -> Unit,
+    onOpenPresets: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -151,6 +152,7 @@ fun SettingsScreen(
 
             Text("Queue", style = MaterialTheme.typography.titleMedium)
             ScheduleEntryCard(onClick = onOpenSchedule)
+            PresetsEntryCard(onClick = onOpenPresets)
         }
     }
 
@@ -185,6 +187,21 @@ private fun ScheduleEntryCard(onClick: () -> Unit) {
             Text(
                 text = "The days and times your queue goes out, the pause switch, and " +
                     "what happens when a slot is missed.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PresetsEntryCard(onClick: () -> Unit) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Hashtag sets", style = MaterialTheme.typography.titleSmall)
+            Text(
+                text = "Save the tags you use often and add them to a post in one tap.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),

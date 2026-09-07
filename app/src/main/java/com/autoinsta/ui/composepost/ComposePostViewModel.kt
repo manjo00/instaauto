@@ -11,6 +11,7 @@ import com.autoinsta.data.repository.QueuePreview
 import com.autoinsta.data.repository.QueueRepository
 import com.autoinsta.domain.PostValidation
 import com.autoinsta.domain.MediaFit
+import com.autoinsta.domain.HashtagSet
 import com.autoinsta.domain.PostValidator
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.MissedPostPolicy
@@ -223,11 +224,19 @@ class ComposePostViewModel(
         _uiState.update { it.copy(hashtags = value, selectedPresetId = null, errorMessage = null) }
     }
 
-    fun selectPreset(preset: HashtagPresetEntity?) {
+    /**
+     * Add a saved set's tags to the field.
+     *
+     * **Merged, not replaced.** Overwriting is fine the first time and destructive every
+     * time after — type two tags specific to the piece, pick a set, and they are gone with
+     * no undo. [HashtagSet.merge] keeps both and skips duplicates, so applying the same
+     * set twice does nothing rather than doubling it.
+     */
+    fun applyPreset(preset: HashtagPresetEntity) {
         _uiState.update {
             it.copy(
-                selectedPresetId = preset?.id,
-                hashtags = preset?.hashtags ?: it.hashtags,
+                selectedPresetId = preset.id,
+                hashtags = HashtagSet.merge(it.hashtags, preset.hashtags),
             )
         }
     }

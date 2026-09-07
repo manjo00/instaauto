@@ -44,9 +44,9 @@ That is the queue *and* the publish-race fix confirmed end to end against the re
 **What is still not proven:** a real *week*. One post through the queue is not a rhythm
 kept while nobody is watching — that is still the open question, along with App Standby.
 
-Two things built but never surfaced: `post_history` is written on every publish and has no
-screen, and hashtag presets have a table and repository but no way to create one — so the
-picker on the compose screen is always empty.
+Both of the "built but never surfaced" gaps are now closed: `post_history` has the **Done**
+tab, and hashtag presets have a screen — so the picker on the compose screen finally has
+something in it.
 
 **Where the app actually is: it works.** It schedules a post, fires it on time, uploads the
 media, publishes to Instagram, and records the result. Verified with a real post to the
