@@ -42,7 +42,7 @@ import coil.compose.AsyncImage
 import com.autoinsta.data.db.relations.DonePostRow
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.PostStatus
-import com.autoinsta.ui.components.mediaModel
+import com.autoinsta.ui.components.MediaThumbnail
 import com.autoinsta.ui.queue.momentLabel
 
 /**
@@ -225,23 +225,7 @@ private fun outcomeLabel(row: DonePostRow): String = when {
 
 @Composable
 private fun DoneThumbnail(row: DonePostRow) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        modifier = Modifier.size(64.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            when {
-                row.localUri == null -> Icon(Icons.Default.PhotoCamera, contentDescription = null)
-                row.mediaType == MediaType.VIDEO -> Icon(Icons.Default.Movie, contentDescription = null)
-                else -> AsyncImage(
-                    model = mediaModel(row.localUri),
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                )
-            }
-        }
-    }
+    MediaThumbnail(localUri = row.localUri, mediaType = row.mediaType)
 }
 
 @Composable

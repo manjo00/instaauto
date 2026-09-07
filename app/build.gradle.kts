@@ -105,6 +105,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     implementation(libs.coil.compose)
+    implementation(libs.coil.video)
 
     debugImplementation(libs.androidx.ui.tooling)
 

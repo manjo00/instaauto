@@ -73,6 +73,10 @@ that. It starts dragging immediately, no holding needed.
 Drag near the top or bottom edge and the list scrolls by itself, so you can move something
 from the bottom of a long queue to the top in one gesture.
 
+**Reels show a real frame, not a film icon.** So you can tell three timelapses apart at a
+glance. The frame is taken about 85% of the way through — far enough that a speedpaint
+shows the finished piece, before any outro card. A small ▶ badge marks it as a video.
+
 **Only Queue cards move.** Posts under **Set times** aren't draggable — they have a date
 you chose, so there's nothing to reorder.
 

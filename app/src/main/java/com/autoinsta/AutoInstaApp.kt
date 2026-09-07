@@ -1,6 +1,9 @@
 package com.autoinsta
 
 import android.app.Application
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.decode.VideoFrameDecoder
 import com.autoinsta.data.db.AppDatabase
 import com.autoinsta.data.media.MediaFileStore
 import com.autoinsta.data.prefs.TokenStore
@@ -29,7 +32,7 @@ import com.autoinsta.scheduler.TokenRefreshWorker
  * A proper DI framework (Hilt) is a candidate for a later phase; for now this
  * manual pattern keeps things minimal and dependency-free.
  */
-class AutoInstaApp : Application() {
+class AutoInstaApp : Application(), ImageLoaderFactory {
 
     val database: AppDatabase by lazy { AppDatabase.getInstance(this) }
 
@@ -122,6 +125,18 @@ class AutoInstaApp : Application() {
         applicationScope.launch { queueRepository.replan() }
         QueueMaintenanceWorker.schedule(this)
     }
+
+    /**
+     * Coil's app-wide loader, taught to read a frame out of a video.
+     *
+     * Without [VideoFrameDecoder] every Reel is a grey film icon, which makes a queue of
+     * timelapses impossible to tell apart — and telling them apart is the whole point of
+     * being able to reorder them.
+     */
+    override fun newImageLoader(): ImageLoader =
+        ImageLoader.Builder(this)
+            .components { add(VideoFrameDecoder.Factory()) }
+            .build()
 
     /**
      * Lives as long as the process — for work that must not die with a screen.

@@ -78,7 +78,7 @@ import com.autoinsta.domain.DragReorder
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.PostType
 import com.autoinsta.ui.components.ExactAlarmBanner
-import com.autoinsta.ui.components.mediaModel
+import com.autoinsta.ui.components.MediaThumbnail
 import com.autoinsta.ui.components.openExactAlarmSettings
 import com.autoinsta.ui.queue.momentLabel
 import kotlinx.coroutines.delay
@@ -601,23 +601,7 @@ private fun QueueCard(
 
 @Composable
 private fun Thumbnail(media: MediaItemEntity?) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        modifier = Modifier.size(64.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            when {
-                media == null -> Icon(Icons.Default.PhotoCamera, contentDescription = null)
-                media.mediaType == MediaType.VIDEO -> Icon(Icons.Default.Movie, contentDescription = null)
-                else -> AsyncImage(
-                    model = mediaModel(media.localUri),
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                )
-            }
-        }
-    }
+    MediaThumbnail(localUri = media?.localUri, mediaType = media?.mediaType)
 }
 
 private fun postTypeIcon(type: PostType) = when (type) {

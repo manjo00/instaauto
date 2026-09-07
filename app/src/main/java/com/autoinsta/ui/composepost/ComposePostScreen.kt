@@ -70,6 +70,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.autoinsta.ui.components.MediaThumbnail
 import com.autoinsta.ui.components.mediaModel
 import com.autoinsta.ui.components.ExactAlarmBanner
 import com.autoinsta.ui.components.openExactAlarmSettings
@@ -377,13 +378,12 @@ private fun MediaThumbnail(
             modifier = Modifier.fillMaxSize(),
         ) {
             if (media.mediaType == MediaType.VIDEO) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(
-                        imageVector = Icons.Default.Movie,
-                        contentDescription = "Video",
-                        modifier = Modifier.size(36.dp),
-                    )
-                }
+                // A real frame, so a strip of timelapses is not three identical squares.
+                MediaThumbnail(
+                    localUri = media.uri,
+                    mediaType = media.mediaType,
+                    size = 110.dp,
+                )
             } else {
                 AsyncImage(
                     model = mediaModel(media.uri),
