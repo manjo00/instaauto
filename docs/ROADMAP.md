@@ -126,8 +126,52 @@ The **titles** half is working as intended, which is the half they actually aske
 
 | Item | Size | Notes |
 |---|---|---|
-| **Caption voice options** | **S** | Mostly a prompt change plus a stored choice. A "gallery label" register — facts, materials, hours, what changed — instead of a confession. |
+| ~~Caption voice options~~ | ~~**S**~~ | ✅ Shipped 2026-09-08 as the gallery-label register. |
 | **Arabic / bilingual captions** | **M** | Real decision, not just a translation: audience, reach and hashtag classification all move together. Needs the owner's call, not a default. |
+
+### 🔜 Taste memory — the coach learns which titles the owner keeps
+
+**Requested 2026-09-08**, in the owner's words: *"we need to think of a way to train this ai
+to come up with good result that maches what i know… maybe like deslike and notes attached
+to each result it gives so it can improve."* **Not started — do not build without a design
+review.**
+
+**First, the honest framing.** Nothing here fine-tunes or trains a model; that is not
+available and not needed. What works is **few-shot from their own history** — showing the
+coach the titles they kept and the ones they threw away. `CoachRepository.recentCaptions()`
+already does exactly this for caption voice, so the pattern is proven in this codebase.
+
+**The waste it fixes:** every judgement the owner has already made is currently discarded.
+"Held Gaze" was kept. "Wand Up", "Second Volley", "Empty Yet Longing" were rejected. That is
+the single most valuable signal available and none of it is stored. Three prompt-tuning
+passes were spent guessing at preferences that a dozen kept/rejected pairs would state
+outright.
+
+**Sketch:**
+
+1. New table `coach_feedback` — `titleText`, `source`, `kept`, `note?`, `postId?`, `createdAt`.
+   Schema v5, so a real `Migration(4,5)` plus a `MigrationTest` case.
+2. **Signals that cost the owner nothing**, because they are already tapping:
+   - ticking a title and applying it → `kept = true`
+   - "Show me three different ones" → the three on screen become `kept = false`
+3. **An explicit signal for when it matters:** 👍/👎 per title, plus an optional one-line
+   note ("too literal", "doesn't say what I wrote"). The note is the part worth the most —
+   a rejection with a reason is worth ten without.
+4. `CaptionCoach.userPrompt` grows a section: titles this artist kept, titles they rejected
+   and why. A few hundred tokens; no measurable cost change.
+
+**Second-order benefit, and the reason to prioritise it:** it removes the need to burn API
+calls on synthetic verification. Today, checking a prompt change means paying for runs
+against a made-up image and invented answers — **~$0.35 of the ~$0.49 spent so far.** With
+this table, real use *is* the test set, and the exchange is already logged.
+
+**Watch out for:** rejection ≠ dislike. A title can be good and simply not the one they
+picked, so weighting all three shown titles as failures would poison the examples. Only an
+explicit 👎, or a "show me three different ones" with none applied, is a real negative.
+
+| Item | Size | Notes |
+|---|---|---|
+| **Taste memory (kept/rejected + notes)** | **M** | The above. Highest-value next step for the coach by some distance. |
 
 | Item | Size | Notes |
 |---|---|---|
