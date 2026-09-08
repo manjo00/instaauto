@@ -180,7 +180,11 @@ private fun CoachPayloadDto.toSuggestions(): CoachSuggestions = CoachSuggestions
         titles.map { TitleSuggestion(text = it.text.trim(), source = it.source, why = it.why) }
     ),
     caption = (caption ?: CaptionDto()).let {
-        CaptionDraft(hook = it.hook, process = it.process, invitation = it.invitation)
+        CaptionDraft(
+            materials = it.materials,
+            process = it.process,
+            decision = it.decision,
+        )
     },
     hashtags = hashtags
         .filter { it.tag.isNotBlank() }

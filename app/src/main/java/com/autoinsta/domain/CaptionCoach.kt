@@ -12,9 +12,17 @@ data class CoachAnswers(
     val whatWasHard: String = "",
     /** "What's it about, in three words?" */
     val whatItsAbout: String = "",
+    /**
+     * "What did you make it in, and roughly how long?"
+     *
+     * A caption cannot state materials the artist never mentioned — a model that guesses
+     * the tool or the hours is inventing facts and putting them in their mouth. So the
+     * facts line exists only when this does.
+     */
+    val madeWith: String = "",
 ) {
     val hasSomething: Boolean
-        get() = whatWasHard.isNotBlank() || whatItsAbout.isNotBlank()
+        get() = whatWasHard.isNotBlank() || whatItsAbout.isNotBlank() || madeWith.isNotBlank()
 }
 
 /** One title, and — the point — where it came from. */
@@ -26,14 +34,29 @@ data class TitleSuggestion(
     val why: String,
 )
 
-/** A caption in the three parts it should have, so the shape is visible. */
+/**
+ * A caption in the three parts it should have, so the shape is visible.
+ *
+ * ## Why these three and not a hook
+ * This was `hook / process / invitation` — a confession, then a detail, then a question —
+ * until the owner used it and said plainly: *"am not the type who talk in social media…
+ * i hate talking like this its just not me."* They were right, and the fault was the
+ * design's: a convention was imported without checking it was theirs.
+ *
+ * A gallery wall label is also a caption. It states what a thing is made of and what
+ * happened while making it, and it performs nothing. All three parts below are facts, and
+ * every one of them is still something only the artist could write.
+ */
 data class CaptionDraft(
-    val hook: String,
+    /** "Procreate, ~4 hours." Only ever what the artist actually said — never invented. */
+    val materials: String,
+    /** What was hard, or what changed. The part nobody else could write. */
     val process: String,
-    val invitation: String,
+    /** One choice: a thing kept, cut, or left in by accident. */
+    val decision: String,
 ) {
     /** How it reads once written out. */
-    fun asText(): String = listOf(hook, process, invitation)
+    fun asText(): String = listOf(materials, process, decision)
         .map { it.trim() }
         .filter { it.isNotEmpty() }
         .joinToString("\n\n")
@@ -131,14 +154,27 @@ object CaptionCoach {
         NEVER hand the artist's own words back as a title. What they told you is material
         for the CAPTION; a title must be something they have not already said.
 
-        THE CAPTION
+        Return exactly $TITLE_COUNT title objects, all of them real suggestions. Do not add
+        an extra one to demonstrate what to avoid, and never return an empty title.
+
+        THE CAPTION — A GALLERY LABEL, NOT A DIARY
+        This artist does not talk about themselves online and does not want to start. Write
+        the caption as a wall label: what it is made of, and what happened while making it.
         Three parts, in order:
-        1. hook — one line that is NOT about the art: a thought, a confession, a question.
-        2. process — one concrete detail about making it: what was hard, what changed,
-           what was nearly abandoned. This is the only part nobody else could write.
-        3. invitation — something a reader can answer in three words.
-        Build it from the artist's own answers wherever they gave you any. Use their
-        phrasing rather than replacing it. Do not describe the artwork back to them.
+        1. materials — medium, tools, roughly how long. ONLY what they actually told you.
+           If they did not say, leave this EMPTY. Never invent a tool or a duration.
+        2. process — what was hard, or what changed. The part nobody else could write.
+        3. decision — one choice: something kept, cut, or left in by accident.
+
+        Build all three from the artist's own answers, in their phrasing. State facts.
+
+        BANNED, without exception — this is the register they rejected by name:
+        - feelings about making it ("I felt stuck", "this one fought me")
+        - anything about their day or mood ("woke up and felt like painting")
+        - enthusiasm and self-assessment ("so fun!", "really happy with how this turned out")
+        - questions to the reader, calls to comment, engagement bait of any kind
+        - describing the artwork back to them — they can see it
+        A line that would sound strange said flatly, out loud, to one person is wrong.
 
         HASHTAGS
         Instagram allows exactly $tagLimit per post and they no longer expand reach — they
@@ -175,11 +211,17 @@ object CaptionCoach {
             if (answers.whatItsAbout.isNotBlank()) {
                 appendLine("- What it's about: ${answers.whatItsAbout.trim()}")
             }
+            if (answers.madeWith.isNotBlank()) {
+                appendLine("- Made with, and how long: ${answers.madeWith.trim()}")
+            } else {
+                appendLine("- They did not say what they used, so leave `materials` EMPTY.")
+            }
         } else {
             // Not an error. Some days there is nothing to say yet, and the coach should
             // still work — it just leans on the image alone and says less confidently.
             appendLine("The artist did not add any notes this time, so work from the")
-            appendLine("image alone and keep the caption's process line tentative.")
+            appendLine("image alone, leave `materials` EMPTY rather than guessing a tool")
+            appendLine("or a duration, and keep the caption's process line tentative.")
         }
 
         val voice = pastCaptions.filter { it.isNotBlank() }.take(VOICE_SAMPLE_SIZE)
@@ -229,11 +271,11 @@ object CaptionCoach {
             "caption": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["hook", "process", "invitation"],
+              "required": ["materials", "process", "decision"],
               "properties": {
-                "hook": { "type": "string" },
+                "materials": { "type": "string" },
                 "process": { "type": "string" },
-                "invitation": { "type": "string" }
+                "decision": { "type": "string" }
               }
             },
             "hashtags": {

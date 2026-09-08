@@ -105,6 +105,30 @@ does not appear and nothing else changes.
 is a video too long to read a frame from, and it always uses the first item of a carousel.
 Neither has bitten yet.
 
+### What the first real use taught (2026-09-08)
+
+The owner used it, took **"Held Gaze"**, and posted with the **title only**. Two pieces of
+feedback that the design had assumed away:
+
+1. **The caption's voice is wrong for them.** In their words: *"am not the type who talk in
+   social media... 'i woke up and felt like painting' or 'Felt a little stuck and doing this
+   challenge was a fun experience!' — i hate talking like this its just not me."*
+   The coach's `hook` is specified as *"a thought, a confession, a question"* — which is
+   exactly that register. **A convention was imported without checking it was theirs.** A
+   gallery label is also a caption: medium, hours, what changed. It performs nothing.
+2. **Language is an unasked question.** Their followers are friends and family; writing
+   English at them feels wrong, and mixing two languages feels worse. The whole caption
+   feature quietly assumed English. Hashtags are a separate question again — they classify,
+   and they classify by language.
+
+The **titles** half is working as intended, which is the half they actually asked for:
+*"so naming my pieces at least comes from me."*
+
+| Item | Size | Notes |
+|---|---|---|
+| **Caption voice options** | **S** | Mostly a prompt change plus a stored choice. A "gallery label" register — facts, materials, hours, what changed — instead of a confession. |
+| **Arabic / bilingual captions** | **M** | Real decision, not just a translation: audience, reach and hashtag classification all move together. Needs the owner's call, not a default. |
+
 | Item | Size | Notes |
 |---|---|---|
 | ~~Caption & title coach~~ | ~~**M**~~ | ✅ Shipped 2026-09-08. |

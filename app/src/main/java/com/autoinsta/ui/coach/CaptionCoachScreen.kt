@@ -166,7 +166,7 @@ private fun AskingStage(
     )
     Text(
         text = "These go into the request ahead of everything else, and the suggestions get " +
-            "built on top of them. Two lines is plenty.",
+            "built on top of them. All three are optional; a few words each is plenty.",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -193,6 +193,20 @@ private fun AskingStage(
             modifier = Modifier.fillMaxWidth(),
         )
         Hint("Not what's in the picture — what it's about. \"Leaving somewhere.\" \"Too quiet.\"")
+    }
+
+    Column {
+        OutlinedTextField(
+            value = answers.madeWith,
+            onValueChange = { onAnswersChange(answers.copy(madeWith = it)) },
+            label = { Text("Made with, and roughly how long?") },
+            minLines = 1,
+            maxLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        // Without this it would have to guess, and a guessed tool or duration is a
+        // fabricated fact printed under the artist's name.
+        Hint("\"Procreate, 4 hours.\" Leave it blank and the caption simply won't claim any.")
     }
 
     Button(onClick = onRequest, modifier = Modifier.fillMaxWidth()) {
@@ -272,9 +286,9 @@ private fun ReadyStage(
     }
 
     SectionHeader(
-        title = "A caption in three parts",
-        blurb = "The shape is worth more than the words: something that isn't about the " +
-            "art, one real detail from making it, then something easy to answer.",
+        title = "A caption, as a wall label",
+        blurb = "Facts only — what it's made of, what was hard, what you decided. No " +
+            "feelings, no questions to the reader, nothing about your day.",
     )
     CaptionCard(
         draft = suggestions.caption,
@@ -368,9 +382,9 @@ private fun CaptionCard(
     onChange: (Boolean) -> Unit,
 ) {
     val parts = listOf(
-        Triple("Hook", "not about the art", draft.hook),
-        Triple("Process", "only you could write this", draft.process),
-        Triple("Invitation", "answerable in three words", draft.invitation),
+        Triple("Materials", "only what you told it", draft.materials),
+        Triple("Process", "what was hard, or what changed", draft.process),
+        Triple("Decision", "something kept, cut, or left in", draft.decision),
     )
 
     Card(

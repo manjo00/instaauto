@@ -113,9 +113,10 @@ data class TitleDto(val text: String = "", val source: String = "", val why: Str
 
 @Serializable
 data class CaptionDto(
-    val hook: String = "",
+    // Response DTO, so defaults are fine here: these are read, never sent.
+    val materials: String = "",
     val process: String = "",
-    val invitation: String = "",
+    val decision: String = "",
 )
 
 @Serializable

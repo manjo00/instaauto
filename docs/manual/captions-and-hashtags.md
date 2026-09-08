@@ -82,16 +82,34 @@ where you don't.
 The problem is usually not writing — it is the blank box at the moment the piece is
 finished. Structure fixes that.
 
-**A shape that works every time:**
+### The wall label
 
-1. **One line that isn't about the art.** A thought, a confession, a question.
-   *"This one fought me for three weeks."*
-2. **One concrete process detail.** What was hard, what changed, what nearly got abandoned.
-3. **An invitation.** Something answerable in three words.
+**You do not have to talk about yourself to write a caption.** The standard advice — open
+with a feeling, end with a question — assumes you want to perform, and plenty of people
+don't. A gallery label doesn't perform, and nobody thinks it's cold.
 
-Why that order: people engage with the person, not the render — and the process is the only
-part nobody else could have written. *"Here's my art"* is interchangeable; *"I repainted the
-sky four times"* is not.
+**Three parts, all of them facts:**
+
+1. **Materials.** Medium, tools, roughly how long. *"Procreate, ~4 hours."*
+2. **Process.** What was hard, or what changed. *"Three passes on the light before it
+   stopped looking lit from behind."*
+3. **Decision.** One choice — something kept, cut, or left in by accident. *"The second
+   ridge was a line I couldn't undo, so it stayed."*
+
+Every one of those is still something **only you could have written**, which is the whole
+job. *"Here's my art"* is interchangeable; *"three passes on the light"* is not. And none of
+it requires a mood, an opinion, or a question to the reader.
+
+**What this deliberately leaves out**, because it reads as performance:
+- how you felt while making it — *"this one fought me"*, *"felt a bit stuck"*
+- your day — *"woke up and felt like painting"*
+- self-assessment — *"really happy with how this turned out"*, *"so fun!"*
+- questions and calls to comment
+
+**The test:** would the line sound strange said flatly, out loud, to one person? Then cut it.
+
+*The coach writes in this register by default. It is a setting of the app, not a law of
+captions — if the confessional style ever starts to suit you, it is a prompt change away.*
 
 **The single habit that helps most: write the caption while working, not after.** Keep one
 note per piece and jot the annoying thing that happened that day. By the time it is finished
@@ -144,13 +162,16 @@ On the **New post** screen, once you've picked your art, there's a **Help me wri
 button beside the Caption box. It opens a coach — not a ghostwriter. The difference is
 built into how it behaves.
 
-### It asks you two questions first
+### It asks you three questions first
 
 It will not suggest anything until you've had a go:
 
 - **What was hard about this one?** — the bit you nearly gave up on. This becomes the line
   nobody else could write.
 - **What's it about, in three words?** — not what's *in* the picture. What it's *about*.
+- **Made with, and roughly how long?** — *"Procreate, 4 hours."* Leave it blank and the
+  caption simply won't claim any materials. It will **never guess a tool or a duration** —
+  that would be putting a made-up fact under your name.
 
 Your answers go into the request **ahead of everything else**, and everything it suggests is
 built on top of them. Two lines is plenty.
@@ -164,7 +185,7 @@ more tentative, because it has less to go on.
 | | |
 |---|---|
 | **Three titles** | Each labelled with **which of the five sources** it used — the feeling, a specific detail, time or place, what it almost was, borrowed language — plus one line on what the move was. Read all three before picking. |
-| **A caption in three parts** | Shown as separate labelled blocks — HOOK, PROCESS, INVITATION — rather than one lump, so you can see the shape and reuse it next time without opening the coach at all. |
+| **A caption as a wall label** | Shown as separate labelled blocks — MATERIALS, PROCESS, DECISION — rather than one lump, so you can see the shape and reuse it next time without opening the coach at all. Facts only: no feelings, no questions to the reader, nothing about your day. |
 | **Five hashtags** | Each with its role (niche community / topic / flexible) and a rough post count, so you can see the portfolio shape rather than just copy the tags. |
 
 ### Nothing happens until you tick it

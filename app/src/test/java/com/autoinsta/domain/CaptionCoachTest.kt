@@ -231,24 +231,67 @@ class CaptionCoachTest {
     @Test
     fun `a caption reads as three parts separated by blank lines`() {
         val draft = CaptionDraft(
-            hook = "This one fought me for three weeks.",
-            process = "The sky took four attempts.",
-            invitation = "Which version would you keep?",
+            materials = "Procreate, ~4 hours.",
+            process = "Three passes on the light before it stopped looking lit from behind.",
+            decision = "The second ridge was a line I couldn't undo, so it stayed.",
         )
 
         assertEquals(
-            "This one fought me for three weeks.\n\n" +
-                "The sky took four attempts.\n\n" +
-                "Which version would you keep?",
+            "Procreate, ~4 hours.\n\n" +
+                "Three passes on the light before it stopped looking lit from behind.\n\n" +
+                "The second ridge was a line I couldn't undo, so it stayed.",
             draft.asText(),
         )
     }
 
     @Test
     fun `an empty part does not leave a gap`() {
-        val draft = CaptionDraft(hook = "A quiet one.", process = "", invitation = "Thoughts?")
+        // The common case: no tool or duration was given, so materials is deliberately blank.
+        val draft = CaptionDraft(materials = "", process = "Four attempts.", decision = "Kept the ridge.")
 
-        assertEquals("A quiet one.\n\nThoughts?", draft.asText())
+        assertEquals("Four attempts.\n\nKept the ridge.", draft.asText())
+    }
+
+    // ── The register the owner rejected, pinned so it cannot drift back ────
+
+    @Test
+    fun `the caption is specified as a wall label, not a diary`() {
+        // "am not the type who talk in social media... i hate talking like this its just
+        // not me." The confessional hook is gone and the ban is explicit.
+        val prompt = CaptionCoach.systemPrompt()
+
+        assertTrue(prompt.contains("GALLERY LABEL, NOT A DIARY"))
+        assertFalse("the confessional hook is what they rejected", prompt.contains("a confession"))
+    }
+
+    @Test
+    fun `the prompt bans engagement bait and mood talk by name`() {
+        val prompt = CaptionCoach.systemPrompt()
+
+        assertTrue(prompt.contains("woke up and felt like painting"))
+        assertTrue(prompt.contains("questions to the reader"))
+    }
+
+    @Test
+    fun `materials are never invented when the artist did not say`() {
+        // A guessed tool or duration is a fabricated fact printed under their name.
+        val prompt = CaptionCoach.userPrompt(CoachAnswers(whatWasHard = "the light"))
+
+        assertTrue(prompt.contains("leave `materials` EMPTY"))
+    }
+
+    @Test
+    fun `materials reach the request when the artist does say`() {
+        val prompt = CaptionCoach.userPrompt(CoachAnswers(madeWith = "Procreate, 4 hours"))
+
+        assertTrue(prompt.contains("Procreate, 4 hours"))
+        assertFalse(prompt.contains("leave `materials` EMPTY"))
+    }
+
+    @Test
+    fun `saying only what it was made with still counts as saying something`() {
+        assertTrue(CoachAnswers(madeWith = "Procreate").hasSomething)
+        assertFalse(CoachAnswers(madeWith = "   ").hasSomething)
     }
 
     // ── Accepting a suggestion must never eat what was typed ───────────────
