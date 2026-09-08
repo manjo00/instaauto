@@ -15,7 +15,18 @@ import java.util.concurrent.TimeUnit
  */
 object NetworkModule {
 
-    private val json = Json {
+    /**
+     * Tuned for *reading* other people's responses. Note what that means for *writing*:
+     * `encodeDefaults` is false by default, so any request field left to a Kotlin default
+     * is silently dropped from the body. Wire constants must therefore be passed
+     * explicitly, never defaulted — see `CoachRequestWireTest`.
+     *
+     * Visible for that test on purpose: a test that rebuilds this config instead of using
+     * it would prove nothing, since the bug it guards against *was* a mismatch between the
+     * assumed config and the real one.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal val json = Json {
         // Meta adds fields without warning; unknown ones must not blow up parsing.
         ignoreUnknownKeys = true
         coerceInputValues = true

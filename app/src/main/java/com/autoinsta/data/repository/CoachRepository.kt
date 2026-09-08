@@ -95,7 +95,8 @@ open class CoachRepository(
             maxTokens = AnthropicApi.MAX_TOKENS,
             system = CaptionCoach.systemPrompt(),
             outputConfig = OutputConfigDto(
-                format = OutputFormatDto(schema = schemaElement())
+                effort = "low",
+                format = OutputFormatDto(type = "json_schema", schema = schemaElement()),
             ),
             messages = listOf(
                 CoachMessageDto(
@@ -104,6 +105,7 @@ open class CoachRepository(
                         CoachContentDto(
                             type = "image",
                             source = ImageSourceDto(
+                                type = "base64",
                                 // Always JPEG — coachSnapshot re-encodes whatever it was given.
                                 mediaType = "image/jpeg",
                                 data = encoded,
@@ -125,6 +127,11 @@ open class CoachRepository(
             val payload = json.decodeFromString<CoachPayloadDto>(body)
             CoachResult.Ready(payload.toSuggestions())
         } catch (e: retrofit2.HttpException) {
+            // The API says exactly what it disliked, and throwing that away turns a
+            // one-line fix into a round trip through the owner. It goes to logcat rather
+            // than the screen: it names fields, not anything they can act on.
+            val detail = runCatching { e.response()?.errorBody()?.string() }.getOrNull()
+            android.util.Log.w(TAG, "Coach request rejected (${e.code()}): $detail")
             CoachResult.Failed(explain(e.code()))
         } catch (e: java.net.UnknownHostException) {
             CoachResult.Failed("No internet connection.")
@@ -156,6 +163,8 @@ open class CoachRepository(
     }
 
     private companion object {
+        private const val TAG = "CoachRepository"
+
         /**
          * Opus 5 with `effort: low`, which measurement on the real API showed is ample
          * for a short creative task. Roughly two pence a post at one post a week.

@@ -82,6 +82,45 @@ survives. **Not yet tried on real artwork by the owner** — that is still open.
 
 ## Gotchas — root cause, not just the fix
 
+### 🔴 kotlinx.serialization drops request fields left to a Kotlin default
+
+**Shipped 2026-09-08, one fix after the last one, in the same feature.** Every coach call
+came back HTTP 400 while the DTO looked perfectly correct.
+
+`NetworkModule.json` is configured for *reading* Meta's responses:
+
+```kotlin
+Json { ignoreUnknownKeys = true; coerceInputValues = true; explicitNulls = false }
+```
+
+**`encodeDefaults` is not set, and its default is `false`.** So on the way *out*, any
+property still equal to its Kotlin default is omitted from the body entirely. Two of the
+coach's fields were wire constants written as defaults:
+
+```kotlin
+data class ImageSourceDto(val type: String = "base64", …)     // "type" never sent
+data class OutputFormatDto(val type: String = "json_schema", …) // "type" never sent
+```
+
+The API requires both. Nothing in Kotlin flagged it; the objects are correct in the
+debugger; only the bytes are wrong.
+
+**Root cause:** a JSON config is not one setting, it is a *policy for both directions*, and
+this one was chosen entirely for parsing. Leniency inbound and omission outbound are the
+same flag doing two jobs.
+
+**The rule:** **a wire constant is not a default.** If the protocol requires a field, pass
+it explicitly at the call site; a default makes its presence depend on serializer config
+that was tuned for something else. The defaults are now removed from every request DTO, and
+`CoachRequestWireTest` serialises with the app's **real** `NetworkModule.json` — not a copy,
+because the bug *was* the gap between the assumed config and the real one — and fails if a
+required field stops reaching the wire.
+
+**Also fixed: the app was throwing away the answer.** The API says exactly which field it
+disliked, and `CoachRepository` mapped the whole 400 to a friendly sentence and discarded
+the body. That turned a one-line fix into two round trips through the owner. Error bodies
+now go to logcat.
+
 ### 🔴 `?:` after `?.use { }` tests the lambda's result, not the receiver
 
 **Shipped 2026-09-08 and hit on the owner's first real use** — *"it says couldn't read the

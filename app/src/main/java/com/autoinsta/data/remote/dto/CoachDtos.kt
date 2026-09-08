@@ -42,9 +42,21 @@ data class CoachContentDto(
     val source: ImageSourceDto? = null,
 )
 
+/**
+ * ⚠️ **No Kotlin defaults on any request field below.**
+ *
+ * The shared `NetworkModule.json` is tuned for reading Meta's responses, and one of its
+ * settings bites on the way out: `encodeDefaults` is false, so a field left to its default
+ * never leaves the device. `type = "base64"` and `type = "json_schema"` were written as
+ * defaults, were silently dropped, and every call came back HTTP 400 while the DTO looked
+ * perfectly correct in the debugger.
+ *
+ * A wire constant is not a default — it is a value this request must carry. Pass it.
+ * `CoachRequestWireTest` fails if one goes missing again.
+ */
 @Serializable
 data class ImageSourceDto(
-    val type: String = "base64",
+    val type: String,
     @SerialName("media_type") val mediaType: String,
     val data: String,
 )
@@ -56,7 +68,7 @@ data class OutputConfigDto(
      * measurement on the real API showed it answers well there. Effort is the first
      * cost lever before touching the model.
      */
-    val effort: String = "low",
+    val effort: String,
     val format: OutputFormatDto,
 )
 
@@ -64,7 +76,7 @@ data class OutputConfigDto(
  *  left to whether the model felt like including them. */
 @Serializable
 data class OutputFormatDto(
-    val type: String = "json_schema",
+    val type: String,
     val schema: JsonElement,
 )
 
