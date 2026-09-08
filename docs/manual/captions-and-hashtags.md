@@ -37,15 +37,24 @@ Enforced in `PublishPolicy.MAX_HASHTAGS`.
 Naming feels hard because the instinct is to *describe*. The image already did that. A
 title's job is to add the thing the image cannot say — and to make someone look twice.
 
-**Two rules before the five sources, because between them they fix most bad titles.**
+**Three rules before the five sources, because between them they fix most bad titles.**
 
-**One to three words.** Four at the outside. A title that reads as a sentence or an offhand
-remark isn't a title yet — *Nine Cigarettes* is a title, *"no idea, just the pen"* is
-something you said. Simplicity is not a smaller version of a good title; it is most of what
-makes it one.
+**The hundred-pictures test.** Could the title sit under a hundred other paintings? Then
+it's not a title yet. *Empty Yet Longing* fits a thousand. *Held Gaze* fits one.
 
-**A real noun beats a mood, every time.** Reach for an object, a number, a place, an hour.
-A feeling is what a title should *produce* in someone, not what it should *announce*.
+**One to four words.** A title that reads as a sentence or an offhand remark isn't a title
+yet — *"no idea, just the pen"* is something you said, not a name. Simplicity is not a
+smaller version of a good title; it is most of what makes it one.
+
+**There are two ways to be dull, and they pull in opposite directions:**
+
+| Fault | Looks like | Why it fails |
+|---|---|---|
+| **Vague** | *Empty Yet Longing*, *Serenity* | Could be any picture. Names a mood instead of finding an image for it. |
+| **Literal** | *Wand Up*, *Second Ridge*, *Purple Eye* | Labels something visible in the frame. That's describing the picture with fewer words. |
+
+Fixing only one of them pushes you straight into the other. *Held Gaze* avoids both: it
+names no object, describes nothing — and no other picture owns it.
 
 Titles come from five places. When stuck, walk them in order:
 
@@ -69,9 +78,16 @@ any that merely describe the image. *"Sunset Over Mountains"* is a stock-library
 - two feelings joined by *and* or *yet* — *Empty Yet Longing*. This names the mood instead
   of doing the work of finding an image for it.
 
-**Don't title it with something you already said.** Your own words about a piece are
-excellent caption material and poor names. The caption is where you talk; the title is
-where you don't.
+**Use what you wrote — transformed, not copied.** What you say about a piece is the best
+material you have, and a title should carry that meaning **in words you didn't use**.
+Copying it out is an echo; ignoring it is worse, because then the title isn't about your
+piece at all.
+
+*Worked example.* For the fireworks piece the note was: *"a couple, lovers, friends, or
+siblings — whatever — enjoying fireworks under snow."* The whole subject there is the
+**refusal to say which**. A title that engages with that (*Whoever They Are*, *Two,
+Undecided*) is doing the job. *Wand Up* and *Second Volley* are not — they label things in
+the frame and leave the actual subject untouched.
 
 ---
 

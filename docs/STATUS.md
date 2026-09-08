@@ -82,6 +82,44 @@ survives. **Not yet tried on real artwork by the owner** — that is still open.
 
 ## Gotchas — root cause, not just the fix
 
+### 🟠 Prompt rules come in opposing pairs — fixing one failure buys the other
+
+**2026-09-08, third pass on the same prompt.** Each fix landed the output in the opposite
+ditch, because each rule was written against the failure in front of me rather than against
+the axis it sat on.
+
+| Pass | Rule added | What it produced next |
+|---|---|---|
+| 1 | *"use their phrasing"* (meant for the caption) | **"No idea just the pen"** — their answer quoted back as a name |
+| 2 | *"NEVER hand the artist's own words back"* | **"Wand Up"**, **"Second Volley"** — titles that ignored their meaning entirely |
+| 2 | *"concrete beats abstract, reach for an object"* | literal labels for things visible in the frame — describing, with fewer words |
+
+The fireworks piece makes it plain. The owner wrote *"a couple, lovers, friends, or siblings
+whatever enjoying fireworks under snow"* — the whole subject is the **refusal to say which**.
+The caption nailed it (*"left their relationship unnamed"*); not one of the three titles
+touched it. The caption pipeline had no ban on using their words, which is exactly why it
+succeeded.
+
+**Root cause:** *quoted* and *ignored* are two ends of one axis, as are *vague* and
+*literal*. A rule naming only one end is not a constraint, it is a push. Both ends have to
+be named, with the target described positively in between — "transformed, never quoted, and
+ignoring them is the worse failure"; "a title may be abstract as long as it could only be
+THIS piece."
+
+**The generalisable bit:** when a prompt fix makes the output worse in a new way, do not add
+a third rule to the pile. Find the axis the two failures sit on and name both ends of it.
+
+**Also fixed:** the model was emitting a title it knew was weak and then critiquing itself in
+the `why` field the artist reads. `text` must already be the final answer; `why` is written
+for the artist, not as thinking space.
+
+**Two testing notes.** `trimIndent()` keeps line wrapping, so a prompt assertion on a phrase
+that happens to wrap matches a newline, not a space, and fails for a reason that has nothing
+to do with the rule — `CaptionCoachTest.flatPrompt()` normalises whitespace first. And a
+successful coach call logged **nothing**, so when the owner said "these are dull" the only
+evidence was a byte count; the wrong painting was diagnosed for several minutes as a direct
+result. Debug builds now log the answers in and the titles out.
+
 ### 🟡 An example in the manual became a defect in the output
 
 **2026-09-08.** The coach's first real titles were *"No idea just the pen"* and *"Empty Yet

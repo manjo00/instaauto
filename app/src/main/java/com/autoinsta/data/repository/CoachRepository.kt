@@ -125,7 +125,26 @@ open class CoachRepository(
                 ?: return@withContext CoachResult.Failed("Claude didn't answer. Try again.")
 
             val payload = json.decodeFromString<CoachPayloadDto>(body)
-            CoachResult.Ready(payload.toSuggestions())
+            val suggestions = payload.toSuggestions()
+
+            // Debug builds only. Suggestion quality is the one thing about this feature
+            // that cannot be unit-tested, so when the owner says "these are dull" the
+            // exchange has to be recoverable — otherwise the diagnosis is guesswork.
+            if (BuildConfig.DEBUG) {
+                android.util.Log.d(
+                    TAG,
+                    "coach in: hard='${answers.whatWasHard}' about='${answers.whatItsAbout}' " +
+                        "madeWith='${answers.madeWith}'",
+                )
+                android.util.Log.d(
+                    TAG,
+                    "coach out: " + suggestions.titles.joinToString(" | ") {
+                        "${it.text} (${it.source})"
+                    },
+                )
+            }
+
+            CoachResult.Ready(suggestions)
         } catch (e: retrofit2.HttpException) {
             // The API says exactly what it disliked, and throwing that away turns a
             // one-line fix into a round trip through the owner. It goes to logcat rather

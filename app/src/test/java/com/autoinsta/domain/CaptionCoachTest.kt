@@ -92,16 +92,43 @@ class CaptionCoachTest {
         // Without a length rule it produced "No idea just the pen" — a remark, not a name.
         val prompt = CaptionCoach.systemPrompt()
 
-        assertTrue(prompt.contains("one to three words"))
+        assertTrue(prompt.contains("one to four words"))
     }
 
     @Test
-    fun `the system prompt forbids handing the artist's own words back as a title`() {
-        // The exact failure the owner hit: their answer to "what's it about" came back as
-        // the title. Their words are caption material; a name must be something new.
+    fun `the artist's words must be transformed — neither quoted nor ignored`() {
+        // Two failures, one on each side of this rule, both seen for real:
+        //   quoted  → "No idea just the pen"
+        //   ignored → "Wand Up" / "Second Volley" for a piece whose whole subject was
+        //             an unnamed relationship the owner had described in the answers.
+        // The first version of this rule only banned quoting, and bought the second bug.
+        assertTrue(flatPrompt().contains("TRANSFORMED, NEVER QUOTED"))
+        assertTrue(
+            "ignoring their answers must be called out as the worse failure",
+            flatPrompt().contains("Ignoring what they said is the worse failure"),
+        )
+    }
+
+    /**
+     * The prompt with its line wrapping flattened.
+     *
+     * A phrase that happens to wrap contains a newline, not a space, so asserting on it
+     * raw fails the moment a sentence is rewrapped — which tests the formatting rather
+     * than the rule. Both of the assertions above were written that way first and failed
+     * for exactly that reason.
+     */
+    private fun flatPrompt(): String =
+        CaptionCoach.systemPrompt().replace(Regex("\\s+"), " ")
+
+    @Test
+    fun `the prompt names both ways of being dull`() {
+        // Vague and literal are different faults and the prompt has to forbid both — a
+        // rule against only one of them just pushes suggestions into the other.
         val prompt = CaptionCoach.systemPrompt()
 
-        assertTrue(prompt.contains("NEVER hand the artist's own words back as a title"))
+        assertTrue(prompt.contains("VAGUE"))
+        assertTrue(prompt.contains("LITERAL"))
+        assertTrue("the hundred-pictures test is the one that matters", prompt.contains("hundred other pictures"))
     }
 
     @Test
@@ -116,10 +143,12 @@ class CaptionCoachTest {
 
     @Test
     fun `the system prompt forbids describing the image`() {
-        val prompt = CaptionCoach.systemPrompt().lowercase()
+        val prompt = flatPrompt().lowercase()
 
         assertTrue(prompt.contains("not to describe"))
-        assertTrue(prompt.contains("merely describes"))
+        // Labelling something in the frame is describing with fewer words — the "literal"
+        // half of the dullness rule, and how "Wand Up" got through.
+        assertTrue(prompt.contains("naming something visible in the frame"))
     }
 
     // ── The response shape is where the labels are enforced ────────────────

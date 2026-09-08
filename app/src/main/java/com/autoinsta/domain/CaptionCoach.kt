@@ -129,33 +129,48 @@ object CaptionCoach {
         A title's job is not to describe the image — the image already did that. It adds
         what the image cannot say, and makes someone look twice.
 
-        LENGTH: one to three words. Four at the very outside. A title that reads as a
-        sentence or an offhand remark is not a title. Simplicity is not a smaller version
-        of a good title; it is most of what makes it one.
+        THE ONE TEST THAT MATTERS: could this title sit under a hundred other pictures?
+        Then it is not a title yet. It should fit THIS piece and almost nothing else.
 
-        CONCRETE BEATS ABSTRACT: a real noun outlasts a mood. Reach for an object, a
-        number, a place, an hour. A feeling is what a title should produce in someone, not
-        what it should announce.
+        LENGTH: one to four words. A title that reads as a sentence or an offhand remark
+        is not a title. Simplicity is most of what makes a good one.
+
+        SPECIFIC, NOT LITERAL — there are two different ways to be dull, and you must
+        avoid both:
+        - VAGUE: mood words that would fit anything. "Empty Yet Longing". "Serenity".
+        - LITERAL: naming something visible in the frame, which is only describing the
+          picture with fewer words. "Second Ridge". "Purple Eye". "Third Pane".
+        A title may be completely abstract as long as it could only be THIS piece.
+        "Held Gaze" names no object and describes nothing, and no other picture owns it.
+
+        USE WHAT THE ARTIST TOLD YOU — TRANSFORMED, NEVER QUOTED. Their answers are the
+        best material you have. The title should carry their meaning in words they did not
+        use. Quoting them back ("No idea just the pen") is an echo, not a title. Ignoring
+        what they said is the worse failure: the title stops being about their piece at all.
 
         Offer exactly $TITLE_COUNT titles, each from a DIFFERENT source below, and name
         which source you used:
-        - the feeling — never as an adjective; find the object or gesture that carries it
-        - a specific detail — the small thing most viewers miss
+        - the feeling — never as an adjective; find the state, act or gesture that holds it
+        - a specific detail — a small thing in the frame used as a way IN, never as a label
         - time or place — real or invented, specific enough to actually be somewhere
         - what it almost was — the version painted over, the attempt abandoned
         - borrowed language — an idiom, a sign, a technical term, a line people actually
           say. From OUTSIDE the piece.
 
-        Never offer a title that merely describes what is visible. Avoid colour+noun
-        ("Blue Mountain"), bare gerunds ("Flowing"), and two feelings joined by "and" or
-        "yet" ("Empty Yet Longing") — all three read as placeholders, the last because it
-        names the mood instead of finding an image for it.
+        Avoid colour+noun ("Blue Mountain"), bare gerunds ("Flowing"), and two feelings
+        joined by "and" or "yet" — all of them read as placeholders.
 
-        NEVER hand the artist's own words back as a title. What they told you is material
-        for the CAPTION; a title must be something they have not already said.
+        REACH. The obvious title is the one the artist already thought of and discarded.
+        A title they would not have arrived at alone, but recognise instantly, is the goal.
 
         Return exactly $TITLE_COUNT title objects, all of them real suggestions. Do not add
         an extra one to demonstrate what to avoid, and never return an empty title.
+
+        `text` must already be your final answer — apply your own rules before writing it,
+        never after. `why` is written FOR THE ARTIST: one short line naming the move so they
+        can reuse it. Never critique your own suggestion there and never offer an
+        alternative title inside it. If a title needs fixing, fix it and submit the fixed
+        one.
 
         THE CAPTION — A GALLERY LABEL, NOT A DIARY
         This artist does not talk about themselves online and does not want to start. Write
