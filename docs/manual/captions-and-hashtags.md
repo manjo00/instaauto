@@ -35,23 +35,43 @@ Enforced in `PublishPolicy.MAX_HASHTAGS`.
 **Keywords:** title, name my art, what to call it, naming, untitled, piece name
 
 Naming feels hard because the instinct is to *describe*. The image already did that. A
-title's job is to add the thing the image cannot say.
+title's job is to add the thing the image cannot say — and to make someone look twice.
+
+**Two rules before the five sources, because between them they fix most bad titles.**
+
+**One to three words.** Four at the outside. A title that reads as a sentence or an offhand
+remark isn't a title yet — *Nine Cigarettes* is a title, *"no idea, just the pen"* is
+something you said. Simplicity is not a smaller version of a good title; it is most of what
+makes it one.
+
+**A real noun beats a mood, every time.** Reach for an object, a number, a place, an hour.
+A feeling is what a title should *produce* in someone, not what it should *announce*.
 
 Titles come from five places. When stuck, walk them in order:
 
-1. **The feeling** — yours while making it, or theirs looking at it. *Restless.*
-2. **One specific detail** — something small inside the frame. *The Third Window.*
-3. **Time or place** — real or invented. *4am, Still Awake.*
-4. **What it almost was** — the version painted over.
-5. **Borrowed language** — a line from whatever was playing or being read at the time.
+1. **The feeling** — but never as an adjective. Find the object or the gesture that carries
+   it. Not *Restless* — *Still Packed*.
+2. **One specific detail** — something small inside the frame, the bit most people miss.
+   *The Third Window.*
+3. **Time or place** — real or invented, specific enough to actually be somewhere.
+   *4am, Still Awake.*
+4. **What it almost was** — the version painted over, the attempt abandoned.
+5. **Borrowed language** — a line from whatever was playing or being read at the time. From
+   *outside* the piece: an idiom, a sign, a technical term, something people actually say.
 
 **The rule that fixes most of it: never use your first title.** Write three, then discard
 any that merely describe the image. *"Sunset Over Mountains"* is a stock-library caption.
 *"The Long Way Home"* is a title.
 
-**Two shapes to avoid**, because both read as placeholders:
+**Three shapes to avoid**, because all of them read as placeholders:
 - colour + noun — *Blue Mountain*
 - gerunds — *Flowing*, *Dreaming*
+- two feelings joined by *and* or *yet* — *Empty Yet Longing*. This names the mood instead
+  of doing the work of finding an image for it.
+
+**Don't title it with something you already said.** Your own words about a piece are
+excellent caption material and poor names. The caption is where you talk; the title is
+where you don't.
 
 ---
 
@@ -158,6 +178,12 @@ out of curiosity halfway through writing and lose nothing.
 
 Tapping a title again unticks it. **Write it myself** leaves with nothing, and that's a
 perfectly good outcome.
+
+### If none of the three land
+
+At the bottom there's **Show me three different ones**. It keeps both your answers, so you
+don't retype anything, and costs about a penny. Three misses is a normal outcome, not a
+fault — and the sources it hasn't used yet are often where the good one is hiding.
 
 ### Things worth knowing
 

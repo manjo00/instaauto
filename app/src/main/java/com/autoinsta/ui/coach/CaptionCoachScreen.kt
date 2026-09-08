@@ -23,6 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -136,6 +137,7 @@ fun CaptionCoachScreen(
                     onTagToggle = { tag ->
                         chosenTags = if (tag in chosenTags) chosenTags - tag else chosenTags + tag
                     },
+                    onRetry = onRequest,
                 )
 
                 CoachStage.Closed -> Unit
@@ -254,6 +256,7 @@ private fun ReadyStage(
     onUseCaptionChange: (Boolean) -> Unit,
     chosenTags: Set<String>,
     onTagToggle: (String) -> Unit,
+    onRetry: () -> Unit,
 ) {
     SectionHeader(
         title = "${CaptionCoach.TITLE_COUNT} ways to name it",
@@ -291,6 +294,19 @@ private fun ReadyStage(
             onToggle = { onTagToggle(tag.tag) },
         )
     }
+
+    // Three that all miss is a normal outcome, not a failure. Without this the only way
+    // back is to close the coach and type both answers again.
+    OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+        Text("Show me three different ones")
+    }
+    Text(
+        text = "Keeps your answers. Costs about a penny.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable

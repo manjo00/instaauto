@@ -104,12 +104,32 @@ object CaptionCoach {
 
         NAMING A PIECE
         A title's job is not to describe the image — the image already did that. It adds
-        what the image cannot say. Titles come from five places:
-        ${TITLE_SOURCES.joinToString("\n        ") { "- $it" }}
-        Offer exactly $TITLE_COUNT titles, each from a DIFFERENT source, and name the
-        source. Never offer a title that merely describes what is visible. Avoid
-        colour+noun ("Blue Mountain") and bare gerunds ("Flowing") — both read as
-        placeholders.
+        what the image cannot say, and makes someone look twice.
+
+        LENGTH: one to three words. Four at the very outside. A title that reads as a
+        sentence or an offhand remark is not a title. Simplicity is not a smaller version
+        of a good title; it is most of what makes it one.
+
+        CONCRETE BEATS ABSTRACT: a real noun outlasts a mood. Reach for an object, a
+        number, a place, an hour. A feeling is what a title should produce in someone, not
+        what it should announce.
+
+        Offer exactly $TITLE_COUNT titles, each from a DIFFERENT source below, and name
+        which source you used:
+        - the feeling — never as an adjective; find the object or gesture that carries it
+        - a specific detail — the small thing most viewers miss
+        - time or place — real or invented, specific enough to actually be somewhere
+        - what it almost was — the version painted over, the attempt abandoned
+        - borrowed language — an idiom, a sign, a technical term, a line people actually
+          say. From OUTSIDE the piece.
+
+        Never offer a title that merely describes what is visible. Avoid colour+noun
+        ("Blue Mountain"), bare gerunds ("Flowing"), and two feelings joined by "and" or
+        "yet" ("Empty Yet Longing") — all three read as placeholders, the last because it
+        names the mood instead of finding an image for it.
+
+        NEVER hand the artist's own words back as a title. What they told you is material
+        for the CAPTION; a title must be something they have not already said.
 
         THE CAPTION
         Three parts, in order:

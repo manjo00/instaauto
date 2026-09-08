@@ -21,7 +21,14 @@ sealed interface CoachStage {
 
     data object Thinking : CoachStage
 
-    data class Ready(val suggestions: CoachSuggestions) : CoachStage
+    /**
+     * [answers] rides along so "show me three different ones" does not make the owner type
+     * them out again. Three titles that all miss is a normal outcome, not an error.
+     */
+    data class Ready(
+        val suggestions: CoachSuggestions,
+        val answers: CoachAnswers,
+    ) : CoachStage
 
     data class Failed(val reason: String, val answers: CoachAnswers) : CoachStage
 }

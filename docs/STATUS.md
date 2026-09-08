@@ -82,6 +82,34 @@ survives. **Not yet tried on real artwork by the owner** — that is still open.
 
 ## Gotchas — root cause, not just the fix
 
+### 🟡 An example in the manual became a defect in the output
+
+**2026-09-08.** The coach's first real titles were *"No idea just the pen"* and *"Empty Yet
+Longing"*. The owner: *"i need more creativity and simplicity"*. Both are prompt bugs, and
+one of them was copied faithfully out of our own documentation.
+
+| Bad title | Why it happened |
+|---|---|
+| "No idea just the pen" | The prompt said *"use their phrasing rather than replacing it"* — written for the caption, applied by the model to titles too. It handed the owner's own answer back as a name. |
+| "Empty Yet Longing" | `docs/manual/captions-and-hashtags.md` illustrated **the feeling** with *"Restless."* — a bare adjective. The prompt mirrors the manual, so the manual taught the failure mode. |
+
+Neither had a length rule to push against, so nothing asked for simplicity at all.
+
+**Root cause:** `CaptionCoach` states that the manual is the source of truth for the craft
+and the prompt mirrors it. That is a good rule and it cuts both ways — **a weak example in
+the manual ships as a weak suggestion.** Documentation examples in this project are
+executable in every sense that matters.
+
+**Fixed in both files together**, which is the only correct way to change it: a hard length
+rule (one to three words), "concrete beats abstract", the mood-pair shape added alongside
+colour+noun and gerunds as a named placeholder, and an explicit ban on quoting the artist's
+answers back as a title. The manual's *"Restless"* is now *"Not Restless — Still Packed"*,
+so it teaches the fix rather than the bug.
+
+**Verified** against the live API with the owner's exact failing input: titles came back as
+*Last Bus*, *Second Ridge*, *Moonrise, 6:40* — and "no idea just the pen" correctly
+relocated to the caption's process line, which is where it always belonged.
+
 ### 🔴 kotlinx.serialization drops request fields left to a Kotlin default
 
 **Shipped 2026-09-08, one fix after the last one, in the same feature.** Every coach call

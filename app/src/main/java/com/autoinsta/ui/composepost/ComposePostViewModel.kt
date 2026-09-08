@@ -312,6 +312,8 @@ class ComposePostViewModel(
         val answers = when (val stage = state.coach) {
             is CoachStage.Asking -> stage.answers
             is CoachStage.Failed -> stage.answers
+            // Asking again from the results keeps what they told us the first time.
+            is CoachStage.Ready -> stage.answers
             else -> CoachAnswers()
         }
 
@@ -329,7 +331,7 @@ class ComposePostViewModel(
             _uiState.update {
                 it.copy(
                     coach = when (result) {
-                        is CoachResult.Ready -> CoachStage.Ready(result.suggestions)
+                        is CoachResult.Ready -> CoachStage.Ready(result.suggestions, answers)
                         is CoachResult.Failed -> CoachStage.Failed(result.reason, answers)
                     }
                 )

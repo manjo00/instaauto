@@ -88,6 +88,33 @@ class CaptionCoachTest {
     }
 
     @Test
+    fun `the system prompt asks for short titles`() {
+        // Without a length rule it produced "No idea just the pen" — a remark, not a name.
+        val prompt = CaptionCoach.systemPrompt()
+
+        assertTrue(prompt.contains("one to three words"))
+    }
+
+    @Test
+    fun `the system prompt forbids handing the artist's own words back as a title`() {
+        // The exact failure the owner hit: their answer to "what's it about" came back as
+        // the title. Their words are caption material; a name must be something new.
+        val prompt = CaptionCoach.systemPrompt()
+
+        assertTrue(prompt.contains("NEVER hand the artist's own words back as a title"))
+    }
+
+    @Test
+    fun `the system prompt rejects mood pairs, not just colour-noun`() {
+        // "Empty Yet Longing" is the same placeholder shape as "Blue Mountain" — it names
+        // the mood instead of finding an image for it.
+        val prompt = CaptionCoach.systemPrompt()
+
+        assertTrue(prompt.contains("Blue Mountain"))
+        assertTrue(prompt.contains("Empty Yet Longing"))
+    }
+
+    @Test
     fun `the system prompt forbids describing the image`() {
         val prompt = CaptionCoach.systemPrompt().lowercase()
 
