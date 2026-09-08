@@ -82,6 +82,49 @@ survives. **Not yet tried on real artwork by the owner** — that is still open.
 
 ## Gotchas — root cause, not just the fix
 
+### 🔴 `?:` after `?.use { }` tests the lambda's result, not the receiver
+
+**Shipped 2026-09-08 and hit on the owner's first real use** — *"it says couldn't read the
+image for this post"*. Every image failed. Not some: every one, every time.
+
+```kotlin
+val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+openStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
+```
+
+**Root cause, two facts that only bite together:**
+
+1. A header-only decode (`inJustDecodeBounds = true`) **returns null by contract**. The
+   answer arrives on `bounds.outWidth/outHeight`; the return value is meaningless.
+2. `?:` binds to the value of `openStream(uri)?.use { … }`, which is the **lambda's**
+   result — not the stream. So the elvis fired on a successful decode.
+
+The intent was "if the stream is null, give up". The code said "if the decode returns null,
+give up", and the decode *always* returns null. Nothing threw, so logcat was empty and the
+app could only say "couldn't read the image".
+
+**The fix** is to pull the stream out first, so the mistake is not expressible:
+
+```kotlin
+val header = openStream(uri) ?: return null
+header.use { BitmapFactory.decodeStream(it, null, bounds) }   // result deliberately ignored
+```
+
+**The rule:** when a call's return value is *documented as meaningless*, never let an
+operator consume it. Bind the null-check to the thing you actually mean to check.
+
+**The bigger miss, which is about testing and not Kotlin.** The same session verified the
+coach end to end against the live API and got HTTP 200 — but that check read the image with
+`File.readBytes()` in a JVM harness, so it exercised the API contract and **bypassed the
+device-side image path entirely**. It proved the half that was least likely to be wrong and
+skipped the half that had just been written. A green end-to-end result across a seam you
+stubbed is not an end-to-end result.
+
+`MediaFileStore.sampleSizeFor` is now `internal` in the companion object with JVM tests, and
+every failure path logs its reason — because the decode around it needs a device, this
+project cannot run `connectedAndroidTest` (it wipes the owner's app), and a silent null was
+therefore undiagnosable from the app alone.
+
 ### 🔴 Structured output cannot constrain array length — and says so one error at a time
 
 **Found 2026-09-08, before a single real use**, by running the *actual* `responseSchema()`

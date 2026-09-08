@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.util.Log
 import com.autoinsta.domain.model.MediaType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -117,6 +118,10 @@ class MediaFileStore(
         withContext(Dispatchers.IO) {
             val bitmap = runCatching {
                 if (mediaType == MediaType.VIDEO) videoFrame(uri) else decodeScaled(uri)
+            }.onFailure {
+                // Silence here is what made the first version of this method impossible to
+                // diagnose from the app alone.
+                Log.w(TAG, "coachSnapshot failed for $uri", it)
             }.getOrNull() ?: return@withContext null
 
             runCatching {
@@ -143,22 +148,32 @@ class MediaFileStore(
      * That allocation alone can take the app out on a large export.
      */
     private fun decodeScaled(uri: String): android.graphics.Bitmap? {
+        val header = openStream(uri) ?: run {
+            Log.w(TAG, "coachSnapshot: could not open $uri")
+            return null
+        }
+
+        // A header-only decode returns null BY CONTRACT — the answer arrives on `bounds`,
+        // not as a return value. Testing this result (`?: return null`) makes the whole
+        // method fail on every image, silently, because nothing throws.
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        openStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
+        header.use { BitmapFactory.decodeStream(it, null, bounds) }
 
         val longEdge = maxOf(bounds.outWidth, bounds.outHeight)
-        if (longEdge <= 0) return null
+        if (longEdge <= 0) {
+            Log.w(TAG, "coachSnapshot: no readable image header in $uri")
+            return null
+        }
 
+        val pixels = openStream(uri) ?: return null
         val options = BitmapFactory.Options().apply {
             inSampleSize = sampleSizeFor(longEdge)
         }
-        return openStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
-    }
-
-    private fun sampleSizeFor(longEdge: Int): Int {
-        var sample = 1
-        while (longEdge / (sample * 2) >= COACH_MAX_EDGE_PX) sample *= 2
-        return sample
+        return pixels.use { BitmapFactory.decodeStream(it, null, options) }
+            ?: run {
+                Log.w(TAG, "coachSnapshot: decode failed for $uri (${longEdge}px)")
+                null
+            }
     }
 
     /** A frame from part-way through, scaled down. Null if the video will not open. */
@@ -259,9 +274,25 @@ class MediaFileStore(
 
     companion object {
         const val MEDIA_DIR_NAME = "media"
+        private const val TAG = "MediaFileStore"
         private const val DEFAULT_EXTENSION = ".bin"
         private const val MAX_EXTENSION_LENGTH = 5
         private const val CONTENT_SCHEME = "content://"
+
+        /**
+         * How much to divide the image by while decoding, as a power of two — the only
+         * thing `inSampleSize` accepts.
+         *
+         * In the companion object so it can be unit-tested on the JVM without a Context.
+         * The decode around it needs a device and cannot be, which is exactly how a bug
+         * here stayed invisible once already.
+         */
+        @androidx.annotation.VisibleForTesting
+        internal fun sampleSizeFor(longEdge: Int): Int {
+            var sample = 1
+            while (longEdge / (sample * 2) >= COACH_MAX_EDGE_PX) sample *= 2
+            return sample
+        }
 
         /**
          * Long edge sent to the coach. Larger buys nothing — the API resizes anything
