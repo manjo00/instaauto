@@ -28,11 +28,13 @@ free host (Cloudinary unsigned preset) to get the public URL the API requires.
 data/
   db/        Room: entities (ScheduledPost, MediaItem, HashtagPreset, PostHistory,
              Account, PostingSlot, QueueSettings) + DAOs + AppDatabase
-  media/     MediaFileStore  — copies picked media into app-private storage  ✅
-  remote/    InstagramAuthApi · InstagramApi · CloudinaryUploader
+  media/     MediaFileStore  — copies picked media into app-private storage,
+             and makes the shrunk JPEG the coach is shown                       ✅
+  remote/    InstagramAuthApi · InstagramApi · CloudinaryUploader · AnthropicApi
              NetworkModule · OAuthRedirectBus · dto/                            ✅
   repository/ PostRepository · PresetRepository · AccountRepository
-             HistoryRepository · PublishRepository · QueueRepository            ✅
+             HistoryRepository · PublishRepository · QueueRepository
+             CoachRepository                                                    ✅
   prefs/     TokenStore (EncryptedSharedPreferences)                            ✅
 domain/
   model/     PostType (SINGLE_IMAGE | REEL | CAROUSEL), PostStatus, MediaType
@@ -43,6 +45,8 @@ domain/
   PublishPolicy.kt      polling cadence, quota, caption limits                    ✅
   QueuePlanner.kt       slots + pool order -> real publish times                  ✅
   DragReorder.kt        the index maths behind the reorder gesture                ✅
+  HashtagSet.kt         parse/count/merge tags without ever losing one            ✅
+  CaptionCoach.kt       the coach's prompts, schema, and merge rules              ✅
 scheduler/                                                                      ✅
   PostScheduler   arms/cancels exact alarms; reports whether exact timing is allowed
   AlarmReceiver   receives the alarm, immediately hands off to the worker
@@ -56,7 +60,10 @@ ui/
   settings/                                  ✅ account connect
   composepost/ + MediaFitEditor              ✅ compose a post, fit each image
   queue/   ScheduleScreen + QueueFormat      ✅ slots, pause, catch-up window
-  presets/  history/  manual/                ⏳ planned (Phase 6)
+  coach/   CaptionCoachScreen + CoachStage   ✅ ask-first title/caption/tag coach
+  presets/                                   ✅ saved hashtag sets
+  home/    HomeScreen + DoneList             ✅ queue and posted/failed tabs
+  manual/                                    ⏳ planned (Phase 6)
 AutoInstaApp.kt   Application (DB + WorkManager init)
 MainActivity.kt   single-activity, Compose NavHost
 ```

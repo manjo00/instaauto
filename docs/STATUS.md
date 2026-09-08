@@ -3,7 +3,7 @@
 **Living document.** What's shipped, what's in flight, and every gotcha that cost us
 time — recorded with its *root cause*, so it never has to be rediscovered.
 
-Last updated: 2026-09-03
+Last updated: 2026-09-08
 
 ---
 
@@ -20,10 +20,26 @@ Last updated: 2026-09-03
 | 5a — Real publishing | Cloudinary upload + Graph API publish; image / Reel / carousel | 107 unit + 31 instrumented; **a real post reached the live account**; PNG→JPEG and 9:16→4:5 fitting proven against live Cloudinary |
 | 5b — Fitting editor | Per-image preview, manual crop against Instagram's frame, pad/crop choice | 119 unit + 33 instrumented; schema v3 with migration tests |
 | 5c — Posting queue | Recurring slots + an ordered pool; drag to reorder, catch-up window, pause, Done tab | 173 unit + 52 instrumented, lint 0 errors; schema v4 with migration tests; drag proven end to end on the device |
+| 6 — Caption coach | Ask-first title / caption / hashtag coach on the compose screen | 212 unit tests, lint 0 errors; **the real prompt and schema verified against the live API**, HTTP 200 with every enum satisfied. No schema change. |
 
 ## In flight
 
-**Phase 6 — polish, presets + history screens, in-app manual.** Not started.
+**Phase 6 — polish, presets + history screens, in-app manual.** Mostly built. The Done tab,
+hashtag presets, video thumbnails and the caption coach have shipped; the **in-app manual
+screen** and the **app icon** remain.
+
+**The caption coach (2026-09-08).** *"Help me write this"* beside the Caption box on the
+compose screen. It asks two questions before it suggests anything, then offers three
+source-labelled titles, a caption in three labelled parts, and five role-labelled hashtags —
+all unticked, and accepting only ever *adds* to what is already typed.
+
+Optional by construction: no API key means the button never appears and nothing else in the
+app changes. `claude-opus-5`, `effort: low`, hand-written Retrofit; measured 2,716 in / 507
+out per call ≈ 1–2p a post. Reads the last 8 **published** captions for voice.
+
+**Not yet tried on the owner's own artwork** — the pipeline is proven end to end against the
+live API with a synthetic image, but whether the suggestions are *good on their work* is
+theirs to judge.
 
 **Phase 5c shipped the posting queue.** Set the days and times once; finished pieces join
 a pool and take the next free slot. An empty pool means the day is simply skipped — no
@@ -58,12 +74,61 @@ survives. **Not yet tried on real artwork by the owner** — that is still open.
 
 ## Not built yet
 
-- **Phase 6** — Polish, hashtag-preset management screen, in-app manual.
+- **Phase 6 remainder** — the in-app manual screen (content is written in `docs/manual/`)
+  and the app icon.
 - **Phase 7** — Release prep.
 
 ---
 
 ## Gotchas — root cause, not just the fix
+
+### 🔴 Structured output cannot constrain array length — and says so one error at a time
+
+**Found 2026-09-08, before a single real use**, by running the *actual* `responseSchema()`
+against the live API instead of assuming it was valid.
+
+The coach's schema asked for exactly three titles and five hashtags, the obvious way:
+
+```json
+"titles": { "type": "array", "minItems": 3, "maxItems": 3, "items": { … } }
+```
+
+The API rejects it:
+
+```
+HTTP 400  output_config.format.schema:
+          For 'array' type, 'minItems' values other than 0 or 1 are not supported
+```
+
+Fixed that (`minItems: 1`), re-ran, and got a **different** 400:
+
+```
+HTTP 400  output_config.format.schema:
+          For 'array' type, property 'maxItems' is not supported
+```
+
+**Root cause:** JSON Schema is a big spec and structured output implements a subset. Array
+*length* constraints are outside it entirely — both keywords, not just the one the first
+error named. `additionalProperties`, `required` and `enum` are all fine, which is what makes
+the gap easy to miss: most of the schema validates, so it looks supported.
+
+**Two rules, and the second is the one that nearly got away:**
+
+1. **A schema is a wire format, not a local data structure.** It is a third party's rules, so
+   it expires and must be verified against the live API — exactly like Instagram's hashtag
+   cap. This one would have returned 400 on *every single call*; the coach would never have
+   worked once, and the owner would have seen "Claude couldn't read that request."
+2. **A validation error reports the first problem, not every problem.** Fixing what an error
+   names and shipping is not verification. Re-run until it passes.
+
+**Where the counts live now:** asked for in `CaptionCoach.systemPrompt()`, enforced in code
+on the way out by `titlesToOffer()` and `tagsAsText()` — neither of which ever trusted the
+model's count anyway. The schema still pins the shape of each *item*, which is the part that
+matters: `source` and `role` are the teaching and must never be optional or free-form.
+
+`CaptionCoachTest.the schema does not try to constrain array length` guards both keywords.
+It replaced a test that asserted `minItems == TITLE_COUNT` — i.e. a test that pinned the
+broken schema in place and would have gone green forever.
 
 ### 🟡 The official Anthropic SDK works on Android but costs 6.9 MB — measured, then rejected
 

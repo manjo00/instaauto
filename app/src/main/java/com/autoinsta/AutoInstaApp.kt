@@ -112,6 +112,7 @@ class AutoInstaApp : Application(), ImageLoaderFactory {
         CoachRepository(
             api = NetworkModule.anthropicApi,
             historyDao = database.postHistoryDao(),
+            mediaFileStore = mediaFileStore,
         )
     }
 

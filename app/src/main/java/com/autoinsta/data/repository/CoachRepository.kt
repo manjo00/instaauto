@@ -3,6 +3,7 @@ package com.autoinsta.data.repository
 import android.util.Base64
 import com.autoinsta.BuildConfig
 import com.autoinsta.data.db.dao.PostHistoryDao
+import com.autoinsta.data.media.MediaFileStore
 import com.autoinsta.data.remote.AnthropicApi
 import com.autoinsta.data.remote.dto.CaptionDto
 import com.autoinsta.data.remote.dto.CoachContentDto
@@ -18,7 +19,7 @@ import com.autoinsta.domain.CoachAnswers
 import com.autoinsta.domain.CoachSuggestions
 import com.autoinsta.domain.TagSuggestion
 import com.autoinsta.domain.TitleSuggestion
-import java.io.File
+import com.autoinsta.domain.model.MediaType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -52,6 +53,7 @@ sealed interface CoachResult {
 open class CoachRepository(
     private val api: AnthropicApi,
     private val historyDao: PostHistoryDao,
+    private val mediaFileStore: MediaFileStore,
     private val apiKey: String = BuildConfig.ANTHROPIC_API_KEY,
 ) {
 
@@ -61,8 +63,13 @@ open class CoachRepository(
      *  offering a button that can only fail. */
     open fun isAvailable(): Boolean = apiKey.isNotBlank()
 
+    /**
+     * @param mediaUri either a picker `content://` address or a path in our own storage —
+     *   the coach is used both while composing a new post and when editing a saved one.
+     */
     open suspend fun suggest(
-        imagePath: String,
+        mediaUri: String,
+        mediaType: MediaType,
         answers: CoachAnswers,
     ): CoachResult = withContext(Dispatchers.IO) {
         if (!isAvailable()) {
@@ -71,16 +78,17 @@ open class CoachRepository(
             )
         }
 
-        val file = File(imagePath)
-        if (!file.canRead()) {
-            return@withContext CoachResult.Failed("Couldn't read the image for this post.")
-        }
+        // Downscaled and re-encoded to JPEG on the way out; a video becomes one frame.
+        val snapshot = mediaFileStore.coachSnapshot(mediaUri, mediaType)
+            ?: return@withContext CoachResult.Failed(
+                if (mediaType == MediaType.VIDEO) {
+                    "Couldn't read a frame from that video."
+                } else {
+                    "Couldn't read the image for this post."
+                }
+            )
 
-        val encoded = runCatching {
-            Base64.encodeToString(file.readBytes(), Base64.NO_WRAP)
-        }.getOrElse {
-            return@withContext CoachResult.Failed("Couldn't read the image for this post.")
-        }
+        val encoded = Base64.encodeToString(snapshot, Base64.NO_WRAP)
 
         val request = CoachRequestDto(
             model = MODEL,
@@ -96,7 +104,8 @@ open class CoachRepository(
                         CoachContentDto(
                             type = "image",
                             source = ImageSourceDto(
-                                mediaType = mediaTypeFor(file),
+                                // Always JPEG — coachSnapshot re-encodes whatever it was given.
+                                mediaType = "image/jpeg",
                                 data = encoded,
                             ),
                         ),
@@ -137,14 +146,6 @@ open class CoachRepository(
     private fun schemaElement(): JsonElement =
         json.parseToJsonElement(CaptionCoach.responseSchema())
 
-    private fun mediaTypeFor(file: File): String =
-        when (file.extension.lowercase()) {
-            "png" -> "image/png"
-            "webp" -> "image/webp"
-            "gif" -> "image/gif"
-            else -> "image/jpeg"
-        }
-
     /** HTTP codes turned into something worth reading at the moment it happens. */
     private fun explain(code: Int): String = when (code) {
         401 -> "That API key was rejected. Check it in secrets.properties."
@@ -164,9 +165,11 @@ open class CoachRepository(
 }
 
 private fun CoachPayloadDto.toSuggestions(): CoachSuggestions = CoachSuggestions(
-    titles = titles
-        .filter { it.text.isNotBlank() }
-        .map { TitleSuggestion(text = it.text.trim(), source = it.source, why = it.why) },
+    // Capped here rather than by the schema — structured output cannot constrain array
+    // length at all. See CaptionCoach.responseSchema.
+    titles = CaptionCoach.titlesToOffer(
+        titles.map { TitleSuggestion(text = it.text.trim(), source = it.source, why = it.why) }
+    ),
     caption = (caption ?: CaptionDto()).let {
         CaptionDraft(hook = it.hook, process = it.process, invitation = it.invitation)
     },

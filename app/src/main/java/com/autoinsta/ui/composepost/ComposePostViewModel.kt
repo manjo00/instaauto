@@ -4,15 +4,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.autoinsta.data.db.entities.HashtagPresetEntity
 import com.autoinsta.data.db.entities.ScheduledPostEntity
+import com.autoinsta.data.repository.CoachRepository
+import com.autoinsta.data.repository.CoachResult
 import com.autoinsta.data.repository.MediaToSave
 import com.autoinsta.data.repository.PostRepository
 import com.autoinsta.data.repository.PresetRepository
 import com.autoinsta.data.repository.QueuePreview
 import com.autoinsta.data.repository.QueueRepository
+import com.autoinsta.domain.CaptionCoach
+import com.autoinsta.domain.CaptionDraft
+import com.autoinsta.domain.CoachAnswers
 import com.autoinsta.domain.PostValidation
 import com.autoinsta.domain.MediaFit
 import com.autoinsta.domain.HashtagSet
 import com.autoinsta.domain.PostValidator
+import com.autoinsta.ui.coach.CoachStage
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.MissedPostPolicy
 import com.autoinsta.domain.model.TimingMode
@@ -81,6 +87,12 @@ data class ComposePostUiState(
     val canScheduleExact: Boolean = true,
     /** Index of the item open in the fitting editor, or null when it is closed. */
     val editingFitAt: Int? = null,
+    /**
+     * False when no API key is configured. The entry point is then hidden entirely rather
+     * than shown as a button that can only fail.
+     */
+    val coachAvailable: Boolean = false,
+    val coach: CoachStage = CoachStage.Closed,
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
     val saveComplete: Boolean = false,
@@ -98,6 +110,7 @@ class ComposePostViewModel(
     private val postRepository: PostRepository,
     private val presetRepository: PresetRepository,
     private val queueRepository: QueueRepository,
+    private val coachRepository: CoachRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -116,6 +129,7 @@ class ComposePostViewModel(
                 _uiState.update { it.copy(presets = presets) }
             }
         }
+        _uiState.update { it.copy(coachAvailable = coachRepository.isAvailable()) }
         if (postId != null) loadExisting(postId) else refreshQueuePreview()
     }
 
@@ -263,6 +277,87 @@ class ComposePostViewModel(
                 }
             }
             state.copy(media = updated, editingFitAt = null, errorMessage = null)
+        }
+    }
+
+    // ── The caption coach ──────────────────────────────────────────────────
+
+    /** Opens on the questions, never on suggestions. See [CoachStage]. */
+    fun openCoach() {
+        _uiState.update { it.copy(coach = CoachStage.Asking()) }
+    }
+
+    fun setCoachAnswers(answers: CoachAnswers) {
+        _uiState.update { state ->
+            when (state.coach) {
+                is CoachStage.Asking -> state.copy(coach = CoachStage.Asking(answers))
+                else -> state
+            }
+        }
+    }
+
+    fun closeCoach() {
+        _uiState.update { it.copy(coach = CoachStage.Closed) }
+    }
+
+    /**
+     * Sends the first piece of media — the one Instagram uses as the cover — along with
+     * whatever the owner said about it.
+     *
+     * Retrying from [CoachStage.Failed] reuses the answers rather than making them type
+     * again, which is why that stage carries them.
+     */
+    fun requestSuggestions() {
+        val state = _uiState.value
+        val answers = when (val stage = state.coach) {
+            is CoachStage.Asking -> stage.answers
+            is CoachStage.Failed -> stage.answers
+            else -> CoachAnswers()
+        }
+
+        val media = state.media.firstOrNull()
+        if (media == null) {
+            _uiState.update {
+                it.copy(coach = CoachStage.Failed("Add a photo or video first.", answers))
+            }
+            return
+        }
+
+        _uiState.update { it.copy(coach = CoachStage.Thinking) }
+        viewModelScope.launch {
+            val result = coachRepository.suggest(media.uri, media.mediaType, answers)
+            _uiState.update {
+                it.copy(
+                    coach = when (result) {
+                        is CoachResult.Ready -> CoachStage.Ready(result.suggestions)
+                        is CoachResult.Failed -> CoachStage.Failed(result.reason, answers)
+                    }
+                )
+            }
+        }
+    }
+
+    /**
+     * Takes only what was ticked, and only ever *adds*.
+     *
+     * The merging rules are [CaptionCoach.captionWith] and [HashtagSet.merge], both pure and
+     * both tested — a coach that quietly overwrote a half-written caption would be worse
+     * than no coach.
+     */
+    fun applyCoach(title: String?, caption: CaptionDraft?, tags: List<String>) {
+        _uiState.update { state ->
+            state.copy(
+                caption = CaptionCoach.captionWith(state.caption, title, caption),
+                hashtags = if (tags.isEmpty()) {
+                    state.hashtags
+                } else {
+                    HashtagSet.merge(state.hashtags, tags.joinToString(" "))
+                },
+                // The tags no longer match the saved set they came from, so stop claiming they do.
+                selectedPresetId = if (tags.isEmpty()) state.selectedPresetId else null,
+                coach = CoachStage.Closed,
+                errorMessage = null,
+            )
         }
     }
 

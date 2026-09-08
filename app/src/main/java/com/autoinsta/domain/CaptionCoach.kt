@@ -176,8 +176,18 @@ object CaptionCoach {
      * Structured output rather than parsing prose: the labels (`source`, `role`) are the
      * teaching, so they cannot be optional or free-form. A model that answers in a
      * paragraph has not helped.
+     *
+     * **Array lengths cannot be constrained here at all.** Structured output rejects both
+     * `minItems` above 1 and `maxItems` outright, each with its own HTTP 400 and no
+     * suggestion whatsoever. Verified against the live API on 2026-09-08 — twice, because
+     * removing the first one revealed the second.
+     *
+     * So the counts are asked for in [systemPrompt] and enforced in code on the way out
+     * ([titlesToOffer], [tagsAsText]), never assumed. What the schema still guarantees is
+     * the shape of each *item* — and that is the part that matters, because `source` and
+     * `role` are the teaching and must never be optional or free-form.
      */
-    fun responseSchema(tagLimit: Int = PublishPolicy.MAX_HASHTAGS): String = """
+    fun responseSchema(): String = """
         {
           "type": "object",
           "additionalProperties": false,
@@ -185,8 +195,6 @@ object CaptionCoach {
           "properties": {
             "titles": {
               "type": "array",
-              "minItems": $TITLE_COUNT,
-              "maxItems": $TITLE_COUNT,
               "items": {
                 "type": "object",
                 "additionalProperties": false,
@@ -210,8 +218,6 @@ object CaptionCoach {
             },
             "hashtags": {
               "type": "array",
-              "minItems": $tagLimit,
-              "maxItems": $tagLimit,
               "items": {
                 "type": "object",
                 "additionalProperties": false,
@@ -226,6 +232,49 @@ object CaptionCoach {
           }
         }
     """.trimIndent()
+
+    /**
+     * The titles worth showing.
+     *
+     * The schema cannot cap the array (see [responseSchema]), so the cap lives here. Blank
+     * entries and repeats are dropped first — three options that include a duplicate is
+     * really two, and the whole point is having a real choice to make.
+     */
+    fun titlesToOffer(suggestions: List<TitleSuggestion>): List<TitleSuggestion> = suggestions
+        .filter { it.text.isNotBlank() }
+        .distinctBy { it.text.trim().lowercase() }
+        .take(TITLE_COUNT)
+
+    /**
+     * The caption field after the owner accepts a title and/or the draft.
+     *
+     * **Additive, never destructive.** Whatever is already in the field is kept and the
+     * accepted text goes underneath it. This is the same rule [HashtagSet.merge] follows
+     * for saved sets, and for the same reason: replacing is fine the first time and
+     * destructive every time after, with no undo — type two lines, open the coach out of
+     * curiosity, and they are gone.
+     *
+     * The title leads because that is where a piece's name belongs; everything after it is
+     * meant to be edited.
+     */
+    fun captionWith(
+        existing: String,
+        title: String? = null,
+        draft: CaptionDraft? = null,
+    ): String {
+        val addition = listOfNotNull(
+            title?.trim()?.takeIf { it.isNotEmpty() },
+            draft?.asText()?.takeIf { it.isNotEmpty() },
+        ).joinToString("\n\n")
+
+        val kept = existing.trim()
+        return when {
+            // Accepting nothing must leave the field byte-for-byte alone — not even trimmed.
+            addition.isEmpty() -> existing
+            kept.isEmpty() -> addition
+            else -> "$kept\n\n$addition"
+        }
+    }
 
     /**
      * The hashtags as they would go in the field.

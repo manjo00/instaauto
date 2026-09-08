@@ -17,8 +17,8 @@ live account (`@manjo_4`).
 | | |
 |---|---|
 | Built | Phases 0 → 5c, plus most of Phase 6 (see the BUILT vs PLANNED table below) |
-| Next | **Decide on the caption & title coach** (ROADMAP — two questions are waiting on the owner), then the in-app manual screen + app icon finish Phase 6 |
-| Tests | 169 unit (JVM) + 52 instrumented, all green. Lint 0 errors. Installed on the Fold 7 and the Tab S9 Ultra. |
+| Next | **The in-app manual screen + app icon** finish Phase 6. Content for the manual is already written in `docs/manual/`. |
+| Tests | 212 unit (JVM) + 52 instrumented, all green. Lint 0 errors. Installed on the Fold 7 and the Tab S9 Ultra. |
 | Device | Samsung Galaxy Z Fold 7 (`R5CX631BMJB`), Android 16 / API 36 |
 | Repo | https://github.com/manjo00/instaauto (private), branch `main` |
 
@@ -192,7 +192,7 @@ CLAUDE.md                              this file — the first thing a fresh cha
 | 5a | Cloudinary upload + real Graph API publish | ✅ Built — **posts for real** |
 | 5b | Media fitting editor — preview, manual crop, per-item pad/crop | ✅ Built |
 | 5c | Posting queue — recurring slots, ordered pool, drag reorder, catch-up, pause | ✅ Built |
-| 6 | Polish, presets + history screens, **in-app manual** | 🟡 Mostly built — Done tab ✅, hashtag sets ✅, video thumbnails ✅; manual screen + app icon remain |
+| 6 | Polish, presets + history screens, **in-app manual** | 🟡 Mostly built — Done tab ✅, hashtag sets ✅, video thumbnails ✅, caption coach ✅; manual screen + app icon remain |
 | 7 | Release prep — signing, R8 | ⏳ Planned |
 
 **Today the app works end to end**: schedule a post, it fires on time, uploads to
@@ -206,6 +206,12 @@ transforming the Cloudinary *delivery URL* — the stored original is never touc
 first-comment placement buys no extra slots. `PublishPolicy.MAX_HASHTAGS` carries the date
 and the reason. Any number taken from a third party's rules has an expiry date; record when
 it was true and re-check it when behaviour surprises you.
+
+⚠️ **A third party's *schema* expires the same way its numbers do.** Anthropic's structured
+output rejects `maxItems` outright and `minItems` above 1 — array length cannot be
+constrained at all. The coach's schema was written the obvious way and would have returned
+HTTP 400 on every call. Verify a wire format against the live API, and keep going after the
+first error: validation reports one problem at a time. See `docs/STATUS.md`.
 
 ⚠️ **A queued post's `scheduledAt` is derived, not chosen.** `queuePosition` is the truth;
 `QueuePlanner` computes the time and only `QueueRepository` may write it. Anything else

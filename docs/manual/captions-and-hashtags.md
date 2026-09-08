@@ -110,3 +110,69 @@ immediately whether your work belongs there.
 
 **First-comment placement buys nothing.** The five-tag cap spans caption and comments
 together.
+
+---
+
+## The caption coach
+
+**Keywords:** coach, help me write this, help with caption, suggest a title, name my piece,
+stuck, blank box, ideas, AI, suggestions
+
+*New in this version.*
+
+On the **New post** screen, once you've picked your art, there's a **Help me write this**
+button beside the Caption box. It opens a coach — not a ghostwriter. The difference is
+built into how it behaves.
+
+### It asks you two questions first
+
+It will not suggest anything until you've had a go:
+
+- **What was hard about this one?** — the bit you nearly gave up on. This becomes the line
+  nobody else could write.
+- **What's it about, in three words?** — not what's *in* the picture. What it's *about*.
+
+Your answers go into the request **ahead of everything else**, and everything it suggests is
+built on top of them. Two lines is plenty.
+
+**Both are optional.** Some days there's nothing to say yet. Leave them blank and a **Skip —
+work from the picture alone** button appears; the suggestions then come back deliberately
+more tentative, because it has less to go on.
+
+### What comes back
+
+| | |
+|---|---|
+| **Three titles** | Each labelled with **which of the five sources** it used — the feeling, a specific detail, time or place, what it almost was, borrowed language — plus one line on what the move was. Read all three before picking. |
+| **A caption in three parts** | Shown as separate labelled blocks — HOOK, PROCESS, INVITATION — rather than one lump, so you can see the shape and reuse it next time without opening the coach at all. |
+| **Five hashtags** | Each with its role (niche community / topic / flexible) and a rough post count, so you can see the portfolio shape rather than just copy the tags. |
+
+### Nothing happens until you tick it
+
+Everything arrives **unticked**. The button at the bottom stays greyed out saying *"Tick what
+you want to keep"* until you choose something, then becomes *"Add 3 to the post"*.
+
+**It only ever adds.** Whatever you've already typed in the Caption or Hashtags box is kept —
+the accepted text goes underneath it. Same rule as saved hashtag sets. You can open the coach
+out of curiosity halfway through writing and lose nothing.
+
+Tapping a title again unticks it. **Write it myself** leaves with nothing, and that's a
+perfectly good outcome.
+
+### Things worth knowing
+
+- **It learns your voice from posts that actually went out** — the last eight published
+  captions. Drafts you abandoned aren't your voice, so they're not used.
+- **It works on Reels too.** It can't watch a video, so it takes a frame from **85% of the
+  way through** — a timelapse's first frame is a blank canvas.
+- **It sees a shrunk copy**, never your full-resolution export. Your file is untouched.
+- **A carousel** is judged on its first item, which is what Instagram shows as the cover.
+- **Roughly 1–2p a post.** It only runs when you tap the button.
+- **No button?** That means no API key is configured. Everything else in the app works
+  exactly the same — the coach is an optional extra, not a dependency.
+
+### The honest caveat
+
+The coach treats the blank box *after* the piece is done. The habit further up this page —
+**writing the caption while you work** — beats it, and always will. Use the coach when you're
+stuck, not as the default.

@@ -118,11 +118,50 @@ class CaptionCoachTest {
     }
 
     @Test
-    fun `the schema asks for exactly three titles and five tags`() {
+    fun `the schema does not try to constrain array length`() {
+        // Both of these come back HTTP 400 from structured output, with no suggestion at
+        // all — verified against the live API on 2026-09-08:
+        //   "minItems" above 1 → "values other than 0 or 1 are not supported"
+        //   "maxItems" at all  → "property 'maxItems' is not supported"
+        // The counts are asked for in the system prompt and enforced by titlesToOffer and
+        // tagsAsText instead.
+        //
+        // This replaces a test asserting minItems == TITLE_COUNT and maxItems == the tag
+        // limit — it pinned a schema the API rejects outright.
         val schema = CaptionCoach.responseSchema()
 
-        assertTrue(schema.contains("\"minItems\": ${CaptionCoach.TITLE_COUNT}"))
-        assertTrue(schema.contains("\"maxItems\": ${PublishPolicy.MAX_HASHTAGS}"))
+        assertFalse("maxItems is rejected outright", schema.contains("maxItems"))
+        assertEquals(
+            "minItems must be 0 or 1",
+            emptyList<Int>(),
+            Regex("\"minItems\": (\\d+)")
+                .findAll(schema)
+                .map { it.groupValues[1].toInt() }
+                .filter { it > 1 }
+                .toList(),
+        )
+    }
+
+    @Test
+    fun `the count the schema cannot enforce is enforced in code`() {
+        val tooMany = (1..9).map { TitleSuggestion("Title $it", "the feeling", "why") }
+
+        assertEquals(CaptionCoach.TITLE_COUNT, CaptionCoach.titlesToOffer(tooMany).size)
+    }
+
+    @Test
+    fun `a repeated title does not use up one of the three choices`() {
+        val withDupe = listOf(
+            TitleSuggestion("First Light", "the feeling", ""),
+            TitleSuggestion("first light", "a specific detail", ""),
+            TitleSuggestion("", "time or place", ""),
+            TitleSuggestion("The 5:40", "time or place", ""),
+        )
+
+        assertEquals(
+            listOf("First Light", "The 5:40"),
+            CaptionCoach.titlesToOffer(withDupe).map { it.text },
+        )
     }
 
     // ── Nothing it returns may break the post ──────────────────────────────
@@ -183,5 +222,58 @@ class CaptionCoachTest {
         val draft = CaptionDraft(hook = "A quiet one.", process = "", invitation = "Thoughts?")
 
         assertEquals("A quiet one.\n\nThoughts?", draft.asText())
+    }
+
+    // ── Accepting a suggestion must never eat what was typed ───────────────
+
+    @Test
+    fun `what is already written survives accepting a suggestion`() {
+        // The same lesson as saved hashtag sets: replacing is fine once and destructive
+        // every time after, with no undo.
+        val typed = "Started this on the train home."
+
+        val result = CaptionCoach.captionWith(
+            existing = typed,
+            title = "Departures in Amber",
+            draft = CaptionDraft("A hook.", "A process line.", "A question?"),
+        )
+
+        assertTrue("their own words are gone", result.startsWith(typed))
+        assertTrue(result.contains("Departures in Amber"))
+    }
+
+    @Test
+    fun `accepting nothing leaves the field untouched`() {
+        // Not even trimmed — an unfinished line with a trailing space is still theirs.
+        val typed = "half a thought  "
+
+        assertEquals(typed, CaptionCoach.captionWith(typed, title = null, draft = null))
+        assertEquals(typed, CaptionCoach.captionWith(typed, title = "   "))
+    }
+
+    @Test
+    fun `a title alone fills an empty caption`() {
+        assertEquals("Departures in Amber", CaptionCoach.captionWith("", title = "Departures in Amber"))
+    }
+
+    @Test
+    fun `the title leads, because that is where a name goes`() {
+        val result = CaptionCoach.captionWith(
+            existing = "",
+            title = "First Light",
+            draft = CaptionDraft("A hook.", "", ""),
+        )
+
+        assertEquals("First Light\n\nA hook.", result)
+    }
+
+    @Test
+    fun `a draft alone does not leave a leading blank line`() {
+        val result = CaptionCoach.captionWith(
+            existing = "",
+            draft = CaptionDraft("A hook.", "", "A question?"),
+        )
+
+        assertEquals("A hook.\n\nA question?", result)
     }
 }

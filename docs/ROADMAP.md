@@ -75,41 +75,40 @@ Raised while looking at what an art account actually needs. Nothing here is star
 | **Duplicate a post** | **S** | For a series, most of the work is the same. The Done tab's "put back in queue" is nearly this already. | Certain |
 | **Save as draft** | **S** | Compose a post without committing it to the queue. Today the only options are queue it or pin it. | Certain |
 
-## ⏸ Awaiting a decision — the caption & title coach
+## ✅ Shipped 2026-09-08 — the caption & title coach
 
-**Proposed 2026-09-07, not started. The owner was asked two questions and has not answered
-yet**, so nothing should be built until they do:
+**Decided and built.** The owner answered both open questions: *"yes build the coach, ask
+me first."* Ask-first it is.
 
-1. Build it at all?
-2. Should it **ask them first** (two prompts before it says anything), or just offer
-   options and stay out of the way?
-
-**The constraint that shapes the whole design**, in the owner's words: *"I want to learn how
-to write them myself so naming my pieces at least comes from me."* This is a **coach, not a
+**The constraint that shaped the whole design**, in the owner's words: *"I want to learn how
+to write them myself so naming my pieces at least comes from me."* It is a **coach, not a
 ghostwriter** — success is the owner needing it less each month.
 
-Sketch as proposed:
+What shipped, against the sketch:
 
-1. Asks the owner two questions first — *"What was hard about this one?"* and *"What's it
-   about, in three words?"* — so their words exist before any suggestion does.
-2. Offers three title options, each **labelled with which of the five sources it came from**
-   (the feeling / a detail / time or place / what it almost was / borrowed language), so the
-   method is being taught rather than the answer handed over. Sources are in
-   `docs/manual/captions-and-hashtags.md`.
-3. Offers five tags **labelled by portfolio role with post volumes**, teaching the 2 niche /
-   2 topic / 1 flexible shape.
-4. Nothing auto-fills. Everything editable or ignorable.
-5. Reads previous captions from `post_history` so suggestions sound like the owner.
+1. ✅ Asks two questions first — *"What was hard about this one?"* and *"What's it about, in
+   three words?"* — so their words exist before any suggestion does. Both optional; skipping
+   is a labelled path and makes the answer more tentative.
+2. ✅ Three titles, each labelled with which of the five sources it used.
+3. ✅ Five tags labelled by portfolio role with post volumes.
+4. ✅ Nothing auto-fills — and nothing is even pre-ticked. Accepting only ever *adds*;
+   `CaptionCoach.captionWith` and `HashtagSet.merge` cannot destroy what is already typed.
+5. ✅ Reads the last 8 **published** captions from `post_history` for voice (drafts are
+   excluded on purpose — an abandoned draft is not their voice).
 
-**Technically:** Claude API (`claude-opus-5`, vision — the artwork is already in app
-storage), roughly **$0.02 per post, about a dollar a year** at one post a week. The API key
-would ship inside the APK, which the owner has accepted because **they are not publishing
-the app**. Read the `claude-api` skill before writing any of it.
+**As built:** `claude-opus-5` with `effort: low`, on hand-written Retrofit rather than the
+official SDK (measured: the SDK costs +6.9 MB — see `docs/STATUS.md`). Measured **2,716 in /
+507 out per call ≈ 1–2p a post**. Optional by construction: with no API key the entry point
+does not appear and nothing else changes.
+
+**Still open (small):** the coach cannot be reached when *editing* a saved post whose media
+is a video too long to read a frame from, and it always uses the first item of a carousel.
+Neither has bitten yet.
 
 | Item | Size | Notes |
 |---|---|---|
-| **Caption & title coach** | **M** | The above. Blocked on the owner's answer. |
-| **Working notes per post** | **S** | A scratch field to add to *while painting*, implementing the "write the caption while you work" habit. No API, no key, no cost — attacks the cause rather than the symptom, and was the recommended first step. |
+| ~~Caption & title coach~~ | ~~**M**~~ | ✅ Shipped 2026-09-08. |
+| **Working notes per post** | **S** | A scratch field to add to *while painting*, implementing the "write the caption while you work" habit. No API, no key, no cost — attacks the cause rather than the symptom, and was the recommended first step. **Still the better long-term answer than the coach**, which treats the blank box after the fact. |
 
 ## Technical debt
 

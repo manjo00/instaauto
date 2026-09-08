@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
@@ -84,6 +85,8 @@ import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.MissedPostPolicy
 import com.autoinsta.domain.model.TimingMode
 import com.autoinsta.data.repository.QueuePreview
+import com.autoinsta.ui.coach.CaptionCoachScreen
+import com.autoinsta.ui.coach.CoachStage
 import com.autoinsta.ui.queue.agoLabel
 import com.autoinsta.ui.queue.momentLabel
 import com.autoinsta.domain.model.PostType
@@ -115,6 +118,7 @@ fun ComposePostScreen(
                     postRepository = app.postRepository,
                     presetRepository = app.presetRepository,
                     queueRepository = app.queueRepository,
+                    coachRepository = app.coachRepository,
                 )
             }
         },
@@ -145,6 +149,20 @@ fun ComposePostScreen(
         if (uris.isNotEmpty()) {
             viewModel.addMedia(uris.map { it.toPickedMedia(context) })
         }
+    }
+
+    // The coach takes the whole screen while it is open, same as the fitting editor —
+    // reading three titles and five tags does not fit in a sheet.
+    if (state.coach != CoachStage.Closed) {
+        CaptionCoachScreen(
+            stage = state.coach,
+            onAnswersChange = viewModel::setCoachAnswers,
+            onRequest = viewModel::requestSuggestions,
+            onApply = viewModel::applyCoach,
+            onClose = viewModel::closeCoach,
+            modifier = modifier,
+        )
+        return
     }
 
     // The fitting editor takes the whole screen while it is open.
@@ -219,13 +237,12 @@ fun ComposePostScreen(
                 onEditFit = viewModel::openFitEditor,
             )
 
-            OutlinedTextField(
-                value = state.caption,
-                onValueChange = viewModel::setCaption,
-                label = { Text("Caption") },
-                minLines = 3,
-                maxLines = 8,
-                modifier = Modifier.fillMaxWidth(),
+            CaptionSection(
+                caption = state.caption,
+                onCaptionChange = viewModel::setCaption,
+                coachAvailable = state.coachAvailable,
+                coachEnabled = state.media.isNotEmpty(),
+                onOpenCoach = viewModel::openCoach,
             )
 
             HashtagSection(
@@ -463,6 +480,54 @@ private fun AddMediaCard(onClick: () -> Unit) {
                 Text("Add", style = MaterialTheme.typography.labelMedium)
             }
         }
+    }
+}
+
+/**
+ * The caption field, with the coach one tap away.
+ *
+ * The button is only offered once there is media to look at, and disappears entirely when
+ * no API key is configured — the coach is an optional extra, and a button that can only
+ * fail is worse than no button.
+ */
+@Composable
+private fun CaptionSection(
+    caption: String,
+    onCaptionChange: (String) -> Unit,
+    coachAvailable: Boolean,
+    coachEnabled: Boolean,
+    onOpenCoach: () -> Unit,
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Caption",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f),
+            )
+            if (coachAvailable) {
+                TextButton(onClick = onOpenCoach, enabled = coachEnabled) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text("Help me write this", modifier = Modifier.padding(start = 6.dp))
+                }
+            }
+        }
+        Spacer(4)
+        OutlinedTextField(
+            value = caption,
+            onValueChange = onCaptionChange,
+            label = { Text("Caption") },
+            minLines = 3,
+            maxLines = 8,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

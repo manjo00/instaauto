@@ -94,6 +94,112 @@ class MediaFileStore(
         }
     }
 
+    /**
+     * A small JPEG of one piece of media, for showing to the caption coach.
+     *
+     * Three problems solved in one place, all of which would otherwise reach the network
+     * layer:
+     *
+     * 1. **The address may be either kind.** Media just chosen in the picker is still a
+     *    `content://` grant; media loaded from a saved post is a path in our own storage.
+     *    The coach is used at both moments — most often the first.
+     * 2. **A Reel is a video**, which no vision model reads. A frame stands in for it, taken
+     *    at [COACH_VIDEO_FRAME_PERCENT] through, because a speedpaint's first frame is a
+     *    blank canvas. Same reasoning as the queue's thumbnails.
+     * 3. **Art exports are enormous.** A 40-megapixel PNG base64s into tens of megabytes,
+     *    which is slow on mobile data and gets rejected outright. It is downscaled and
+     *    re-encoded here — the stored original is never touched, exactly as [MediaFit] does
+     *    it for publishing.
+     *
+     * @return JPEG bytes, or null if nothing readable could be produced.
+     */
+    suspend fun coachSnapshot(uri: String, mediaType: MediaType): ByteArray? =
+        withContext(Dispatchers.IO) {
+            val bitmap = runCatching {
+                if (mediaType == MediaType.VIDEO) videoFrame(uri) else decodeScaled(uri)
+            }.getOrNull() ?: return@withContext null
+
+            runCatching {
+                java.io.ByteArrayOutputStream().use { out ->
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, COACH_JPEG_QUALITY, out)
+                    out.toByteArray()
+                }
+            }.also { bitmap.recycle() }.getOrNull()
+        }
+
+    /** Reads either kind of address — a picker grant or one of our own files. */
+    private fun openStream(uri: String): java.io.InputStream? =
+        if (uri.startsWith(CONTENT_SCHEME)) {
+            context.contentResolver.openInputStream(Uri.parse(uri))
+        } else {
+            File(uri).takeIf { it.isFile && it.canRead() }?.inputStream()
+        }
+
+    /**
+     * Decodes at roughly [COACH_MAX_EDGE_PX], never full size.
+     *
+     * `inSampleSize` only halves, so the result can be up to twice the target — which is
+     * fine, and far better than decoding a 40-megapixel bitmap to shrink it afterwards.
+     * That allocation alone can take the app out on a large export.
+     */
+    private fun decodeScaled(uri: String): android.graphics.Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        openStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
+
+        val longEdge = maxOf(bounds.outWidth, bounds.outHeight)
+        if (longEdge <= 0) return null
+
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sampleSizeFor(longEdge)
+        }
+        return openStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+    }
+
+    private fun sampleSizeFor(longEdge: Int): Int {
+        var sample = 1
+        while (longEdge / (sample * 2) >= COACH_MAX_EDGE_PX) sample *= 2
+        return sample
+    }
+
+    /** A frame from part-way through, scaled down. Null if the video will not open. */
+    private fun videoFrame(uri: String): android.graphics.Bitmap? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            if (uri.startsWith(CONTENT_SCHEME)) {
+                retriever.setDataSource(context, Uri.parse(uri))
+            } else {
+                retriever.setDataSource(uri)
+            }
+            val durationMs = retriever
+                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull() ?: 0L
+            val atMicros = (durationMs * 1000L * COACH_VIDEO_FRAME_PERCENT).toLong()
+            retriever
+                .getFrameAtTime(atMicros, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                ?.let(::shrink)
+        } catch (e: Exception) {
+            null
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
+    /** Brings a decoded frame down to [COACH_MAX_EDGE_PX] on its long edge. */
+    private fun shrink(bitmap: android.graphics.Bitmap): android.graphics.Bitmap {
+        val longEdge = maxOf(bitmap.width, bitmap.height)
+        if (longEdge <= COACH_MAX_EDGE_PX) return bitmap
+
+        val scale = COACH_MAX_EDGE_PX.toFloat() / longEdge
+        val scaled = android.graphics.Bitmap.createScaledBitmap(
+            bitmap,
+            (bitmap.width * scale).toInt().coerceAtLeast(1),
+            (bitmap.height * scale).toInt().coerceAtLeast(1),
+            true,
+        )
+        if (scaled !== bitmap) bitmap.recycle()
+        return scaled
+    }
+
     /** True if [path] points at a file we imported and it is still readable. */
     fun exists(path: String): Boolean = File(path).let { it.isFile && it.canRead() }
 
@@ -155,5 +261,18 @@ class MediaFileStore(
         const val MEDIA_DIR_NAME = "media"
         private const val DEFAULT_EXTENSION = ".bin"
         private const val MAX_EXTENSION_LENGTH = 5
+        private const val CONTENT_SCHEME = "content://"
+
+        /**
+         * Long edge sent to the coach. Larger buys nothing — the API resizes anything
+         * bigger before the model sees it, so the extra pixels are paid for in upload
+         * time on mobile data and thrown away.
+         */
+        private const val COACH_MAX_EDGE_PX = 1568
+
+        private const val COACH_JPEG_QUALITY = 85
+
+        /** Late enough that a timelapse shows the finished piece, not a blank canvas. */
+        private const val COACH_VIDEO_FRAME_PERCENT = 0.85
     }
 }
