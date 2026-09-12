@@ -264,6 +264,83 @@ class MigrationTest {
         }
     }
 
+    // ── v4 → v5: the publish lease, failure kinds, and the event log ───────
+
+    @Test
+    fun migrate4To5_keepsTheQueueAndLeavesTheLeaseFree() {
+        helper.createDatabase(TEST_DB, 4).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO scheduled_posts
+                    (postType, status, caption, hashtags, presetId, scheduledAt, createdAt,
+                     workRequestId, missedPolicy, timingMode, queuePosition, notBeforeMillis)
+                VALUES ('SINGLE_IMAGE', 'SCHEDULED', 'queued piece', '#art', NULL, 500, 1,
+                        NULL, 'POST_IF_RECENT', 'QUEUED', 2, NULL)
+                """.trimIndent()
+            )
+            db.execSQL(
+                "INSERT OR REPLACE INTO queue_settings " +
+                    "(id, catchUpWindowMinutes, paused, resumedAtMillis) VALUES (1, 2880, 0, 0)"
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 5, true, MIGRATION_4_5)
+
+        db.query("SELECT caption, queuePosition FROM scheduled_posts").use { c ->
+            assertEquals(1, c.count)
+            c.moveToFirst()
+            assertEquals("queued piece", c.getString(0))
+            assertEquals(2, c.getInt(1))
+        }
+
+        // The owner's two-day window survives, and nothing is mid-publish after an
+        // upgrade — which is true by definition, since the app was not running.
+        db.query(
+            "SELECT catchUpWindowMinutes, publishingPostId, publishingSinceMillis FROM queue_settings"
+        ).use { c ->
+            c.moveToFirst()
+            assertEquals(2880, c.getInt(0))
+            assertTrue("the lease must start free", c.isNull(1))
+            assertTrue(c.isNull(2))
+        }
+    }
+
+    @Test
+    fun migrate4To5_oldHistoryHasNoFailureKindAndCannotFreezeASlot() {
+        helper.createDatabase(TEST_DB, 4).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO post_history
+                    (postId, postType, caption, hashtags, scheduledAt, postedAt, status,
+                     instagramMediaId, errorMessage)
+                VALUES (1, 'SINGLE_IMAGE', 'old', '#old', 900, 950, 'FAILED', NULL, 'boom')
+                """.trimIndent()
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 5, true, MIGRATION_4_5)
+
+        db.query("SELECT errorMessage, failureKind FROM post_history").use { c ->
+            c.moveToFirst()
+            assertEquals("boom", c.getString(0))
+            // Null means "never recorded". SlotLedger treats that as non-blocking, so
+            // history written before the upgrade cannot retroactively close slots.
+            assertTrue(c.isNull(1))
+        }
+    }
+
+    @Test
+    fun migrate4To5_createsAnEmptyEventLog() {
+        helper.createDatabase(TEST_DB, 4).close()
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 5, true, MIGRATION_4_5)
+
+        db.query("SELECT COUNT(*) FROM app_events").use { c ->
+            c.moveToFirst()
+            assertEquals(0, c.getInt(0))
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test.db"
     }

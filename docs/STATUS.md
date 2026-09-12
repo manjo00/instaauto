@@ -82,6 +82,80 @@ survives. **Not yet tried on real artwork by the owner** — that is still open.
 
 ## Gotchas — root cause, not just the fix
 
+### 🔴 App Standby throttles exact alarms — the queue silently stopped firing
+
+**2026-09-09, the first real unattended failure.** A post did not publish at its 19:00 slot.
+It published at 07:58 the next morning, the moment the owner opened the app.
+
+The alarm code was already correct — `setExactAndAllowWhileIdle`, the one variant that
+pierces Doze. The device said why:
+
+```
+am get-standby-bucket com.autoinsta   →  40   (RARE)
+dumpsys deviceidle whitelist          →  no user entry
+dumpsys alarm                         →  policyWhenElapsed: … app_standby=-2d8h44m21s …
+```
+
+**Root cause:** in the **RARE** bucket Android throttles even exact alarms to roughly one
+firing per day, and `dumpsys alarm` names `app_standby` as the deferring policy. This app
+is idle by design — it exists to post once a week *without* being opened — which is exactly
+the pattern App Standby penalises. Doze was never the problem; the standby bucket was.
+
+**The rule:** piercing Doze is necessary and not sufficient. An app that must act on time
+while never being opened needs the **battery-optimisation exemption**, and only the owner
+can grant it. `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` plus `BackgroundHealthBanner` now ask
+for it, and every launch records bucket and exemption into `app_events`, so a repeat is a
+reading rather than an inference.
+
+Measured after the fix: bucket **5 (EXEMPTED)**, `batteryExempt=true`. On this Samsung
+build, declaring the permission was enough — no tap needed. Do not assume that elsewhere;
+the banner covers the case where it is not.
+
+Samsung keeps a *separate* "Deep sleeping apps" list that cannot be reached from code. It
+is in `docs/manual/queue.md` as steps.
+
+### 🔴 A failed post handed its slot straight to the next one, 46 seconds later
+
+Same incident. Two posts published into **one** 19:00 slot:
+
+| Attempted | Post | Outcome |
+|---|---|---|
+| Thu 07:58:02 | 5 | FAILED — *"Only photo or video can be accepted"* |
+| Thu 07:58:48 | 2 | POSTED |
+
+`getFilledSlotTimes` selected `status = 'POSTED'` only, so a **failed** post left its slot
+looking untouched. Post 5 failed → `removeFromQueue` → `replan()` → the slot was still open
+inside the 48-hour catch-up window → post 2 inherited a time already in the past → fired
+immediately. It stopped at two only because post 2 *succeeded* and finally filled the slot.
+
+Worse, and the thing the owner actually noticed: a post in **POSTING** matched *neither*
+queue query — `getQueuedIdsInOrder` is SCHEDULED, `getFilledSlotTimes` was POSTED — so for
+the 30–90 seconds a publish takes it was invisible, and any replan could hand its slot out
+again. Opening the app runs a replan.
+
+**Root cause:** "is this slot used?" was answered by one status, when the real answer has
+four cases that pull in different directions. It now lives in `domain/SlotLedger`, pure and
+tested, and the DAO returns the raw attempts:
+
+| Case | Slot spent? |
+|---|---|
+| POSTED | yes |
+| POSTING | yes — in flight |
+| latest failure TRANSIENT | yes — no network or a dead token fails the next post identically |
+| ≥ 3 attempts | yes — "try the next" must not mean "empty the queue" |
+| permanent failures only, under the cap | **no** — that file was the problem |
+
+Backed by a **publish lease** in `queue_settings`: one post publishes at a time, claimed
+with a single conditional `UPDATE` so the check and the write cannot interleave, and
+timestamped so a publisher the system killed cannot freeze the queue forever.
+
+**The rule:** a state machine's transient states are still states. Any query that decides
+scheduling must account for *in-flight*, not just start and finish.
+
+`PublishCascadeRegressionTest` reproduces the incident in pure code; 8 of its 17 assertions
+fail against the 2026-09-09 logic, including *"a post that is mid-publish does not have its
+slot given away"*.
+
 ### 🟠 Prompt rules come in opposing pairs — fixing one failure buys the other
 
 **2026-09-08, third pass on the same prompt.** Each fix landed the output in the opposite

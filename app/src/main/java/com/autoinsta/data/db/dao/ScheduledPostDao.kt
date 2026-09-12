@@ -9,6 +9,7 @@ import androidx.room.Update
 import com.autoinsta.data.db.entities.ScheduledPostEntity
 import com.autoinsta.data.db.relations.DonePostRow
 import com.autoinsta.data.db.relations.ScheduledPostWithMedia
+import com.autoinsta.domain.model.FailureKind
 import com.autoinsta.domain.model.PostStatus
 import kotlinx.coroutines.flow.Flow
 
@@ -92,17 +93,31 @@ interface ScheduledPostDao {
     suspend fun getQueuedIdsInOrder(): List<Long>
 
     /**
-     * Slot times something has already been published into.
+     * Every use a slot has had — published, publishing, or failed and how.
      *
-     * This is what stops a wide catch-up window draining the pool: without it, the slot a
-     * post just fired into still looks open on the very next replan, and the post behind
-     * it goes out seconds later.
+     * Replaces a `status = 'POSTED'` query that answered "was this slot filled?" and got it
+     * wrong twice. A **failed** post left its slot looking untouched, so the next post
+     * inherited it and, the time being past, fired immediately — two posts, one slot, 46
+     * seconds apart on 2026-09-09. A post that was **publishing** matched nothing at all,
+     * so a replan during the minute a publish takes could hand the same slot out again.
+     *
+     * The union is what fixes the second: history has a row only once an attempt is over,
+     * so in-flight posts have to come from `scheduled_posts` directly.
+     *
+     * What the outcomes *mean* is decided by [com.autoinsta.domain.SlotLedger], not here.
      */
     @Query("""
-        SELECT scheduledAt FROM scheduled_posts
-        WHERE status = 'POSTED' AND timingMode = 'QUEUED' AND scheduledAt >= :sinceMillis
+        SELECT scheduledAt AS slotMillis, status AS status,
+               failureKind AS failureKind, postedAt AS atMillis
+          FROM post_history
+         WHERE scheduledAt >= :sinceMillis
+        UNION ALL
+        SELECT scheduledAt AS slotMillis, status AS status,
+               NULL AS failureKind, scheduledAt AS atMillis
+          FROM scheduled_posts
+         WHERE status = 'POSTING' AND timingMode = 'QUEUED' AND scheduledAt >= :sinceMillis
     """)
-    suspend fun getFilledSlotTimes(sinceMillis: Long): List<Long>
+    suspend fun getSlotAttempts(sinceMillis: Long): List<SlotAttemptRow>
 
     /** Posts the owner pinned to a time, so the planner can stay out of their way. */
     @Query("""
@@ -186,4 +201,12 @@ interface ScheduledPostDao {
 data class NotBeforeHold(
     val id: Long,
     val notBeforeMillis: Long,
+)
+
+/** Row shape for [ScheduledPostDao.getSlotAttempts]; maps to `domain.SlotAttempt`. */
+data class SlotAttemptRow(
+    val slotMillis: Long,
+    val status: PostStatus,
+    val failureKind: FailureKind?,
+    val atMillis: Long,
 )

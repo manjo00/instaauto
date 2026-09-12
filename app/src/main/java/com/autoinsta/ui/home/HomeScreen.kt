@@ -77,6 +77,8 @@ import com.autoinsta.data.db.relations.ScheduledPostWithMedia
 import com.autoinsta.domain.DragReorder
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.PostType
+import com.autoinsta.scheduler.BackgroundHealth
+import com.autoinsta.ui.components.BackgroundHealthBanner
 import com.autoinsta.ui.components.ExactAlarmBanner
 import com.autoinsta.ui.components.MediaThumbnail
 import com.autoinsta.ui.components.openExactAlarmSettings
@@ -233,6 +235,17 @@ fun HomeScreen(
                 if (!canScheduleExact) {
                     item(key = "exact-alarm-banner") {
                         ExactAlarmBanner(onFixClick = { openExactAlarmSettings(context) })
+                    }
+                }
+
+                // Re-read on every composition rather than held in state: the owner grants
+                // this in Settings, outside the app, and comes straight back expecting the
+                // warning to be gone.
+                if (!BackgroundHealth.isIgnoringBatteryOptimisations(context)) {
+                    item(key = "background-health-banner") {
+                        BackgroundHealthBanner(
+                            onFixClick = { BackgroundHealth.requestExemption(context) },
+                        )
                     }
                 }
 

@@ -7,7 +7,10 @@ import com.autoinsta.data.db.entities.PostingSlotEntity
 import com.autoinsta.data.db.entities.QueueSettingsEntity
 import com.autoinsta.data.db.relations.DonePostRow
 import com.autoinsta.data.db.relations.ScheduledPostWithMedia
+import com.autoinsta.domain.PublishPolicy
 import com.autoinsta.domain.QueuePlanner
+import com.autoinsta.domain.SlotAttempt
+import com.autoinsta.domain.SlotLedger
 import com.autoinsta.domain.model.MissedPostPolicy
 import com.autoinsta.domain.model.PostStatus
 import com.autoinsta.domain.model.TimingMode
@@ -38,6 +41,8 @@ class QueueRepository(
     private val slotDao: PostingSlotDao,
     private val settingsDao: QueueSettingsDao,
     private val postScheduler: PostScheduler,
+    /** Null in tests that do not care what got written down. */
+    private val eventLog: EventLog? = null,
     /** Injected so tests can say "pretend it is Wednesday evening in Tokyo". */
     private val clock: () -> Long = System::currentTimeMillis,
     private val zone: () -> ZoneId = ZoneId::systemDefault,
@@ -302,10 +307,76 @@ class QueueRepository(
     /**
      * Slots already used, going back as far as the catch-up window can reach. Anything
      * older cannot be offered anyway, so there is no point loading it.
+     *
+     * The judgement of what "used" means is [SlotLedger]'s, not SQL's — a failed post and a
+     * publishing one both occupy a slot, in different ways and for different reasons.
      */
     private suspend fun filledSlots(nowMillis: Long, windowMinutes: Int): Set<Long> =
-        postDao.getFilledSlotTimes(nowMillis - QueuePlanner.windowMillis(windowMinutes))
-            .toSet()
+        SlotLedger.spentSlots(
+            postDao.getSlotAttempts(nowMillis - QueuePlanner.windowMillis(windowMinutes))
+                .map {
+                    SlotAttempt(
+                        slotMillis = it.slotMillis,
+                        status = it.status,
+                        failureKind = it.failureKind,
+                        atMillis = it.atMillis,
+                    )
+                }
+        )
+
+    // ── The publish lease ──────────────────────────────────────────────────
+
+    /**
+     * Claim the sole right to publish, or find out someone else already has it.
+     *
+     * Exactly one post publishes at a time. Held in the database rather than memory
+     * because the publisher is a worker the system can kill mid-flight, and timestamped so
+     * a killed publisher cannot freeze the queue forever — after
+     * [PublishPolicy.PUBLISH_LEASE_MILLIS] the lease may be taken over.
+     *
+     * @return true if publishing may proceed.
+     */
+    suspend fun tryAcquirePublishLease(postId: Long): Boolean {
+        ensureSettingsRow()
+        val now = clock()
+        val held = settingsDao.tryAcquireLease(
+            postId = postId,
+            nowMillis = now,
+            staleBeforeMillis = now - PublishPolicy.PUBLISH_LEASE_MILLIS,
+        ) > 0
+
+        if (held) {
+            eventLog?.log(EventLog.Category.LEASE, "ACQUIRED", postId)
+        } else {
+            eventLog?.log(
+                EventLog.Category.LEASE,
+                "BLOCKED",
+                postId,
+                "held by post ${settings().publishingPostId}",
+            )
+        }
+        return held
+    }
+
+    /** Give the lease back. A no-op if it already expired and someone else holds it. */
+    suspend fun releasePublishLease(postId: Long) {
+        val released = settingsDao.releaseLease(postId) > 0
+        eventLog?.log(
+            EventLog.Category.LEASE,
+            if (released) "RELEASED" else "RELEASE_IGNORED",
+            postId,
+            if (released) null else "lease had expired and been taken over",
+        )
+    }
+
+    /**
+     * The settings row is seeded by the v3→v4 migration, but a database created fresh at
+     * v4 or later has never run one — and the lease is a conditional UPDATE, which does
+     * nothing at all when there is no row to update.
+     */
+    private suspend fun ensureSettingsRow() {
+        if (settingsDao.get() == null) settingsDao.upsert(QueueSettingsEntity())
+    }
 
     private companion object {
         /**

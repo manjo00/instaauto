@@ -40,11 +40,32 @@ object PublishPolicy {
         val maxAttempts: Int,
         val exhaustionIsFailure: Boolean,
     ) {
+        /** The longest this cadence can spend waiting before it gives up. */
+        val totalMillis: Long get() = intervalMillis * maxAttempts
+
         companion object {
             val VIDEO = PollCadence(POLL_INTERVAL_MILLIS, MAX_POLL_ATTEMPTS, exhaustionIsFailure = true)
             val IMAGE = PollCadence(IMAGE_POLL_INTERVAL_MILLIS, IMAGE_MAX_POLL_ATTEMPTS, exhaustionIsFailure = false)
         }
     }
+
+    /**
+     * Time allowed for getting the media to Cloudinary before a publish is presumed dead.
+     *
+     * Generous on purpose: the owner's Reels run to tens of megabytes and may be uploading
+     * over a phone connection.
+     */
+    const val UPLOAD_ALLOWANCE_MILLIS: Long = 10 * 60 * 1000
+
+    /**
+     * How long one post may hold the publish lease before another may take it.
+     *
+     * **Derived, not chosen.** It is the worst legitimate publish — a full upload plus the
+     * longest readiness poll — so it cannot silently become too short if either changes.
+     * Too short and two posts publish at once, which is the bug this exists to prevent;
+     * too long and a queue whose publisher was killed mid-flight stalls until it expires.
+     */
+    val PUBLISH_LEASE_MILLIS: Long = UPLOAD_ALLOWANCE_MILLIS + PollCadence.VIDEO.totalMillis
 
     /** What to do after one look at a container's status. */
     sealed interface PollDecision {

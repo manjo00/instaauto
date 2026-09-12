@@ -2,6 +2,7 @@ package com.autoinsta.data.db.entities
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.autoinsta.domain.model.FailureKind
 import com.autoinsta.domain.model.PostStatus
 import com.autoinsta.domain.model.PostType
 
@@ -48,4 +49,13 @@ data class PostHistoryEntity(
      * Null on success.
      */
     val errorMessage: String? = null,
+
+    /**
+     * Whose fault the failure was — null on success.
+     *
+     * Recorded rather than re-derived from [errorMessage] because the queue reads it to
+     * decide whether the next post may take this slot, and parsing an error string for a
+     * scheduling decision would be guesswork. See [com.autoinsta.domain.SlotLedger].
+     */
+    val failureKind: FailureKind? = null,
 )

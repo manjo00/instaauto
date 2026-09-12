@@ -31,6 +31,23 @@
     <!-- Tell the user a post went out, or why it didn't. Runtime dialog on Android 13+. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+      Exact alarms are necessary but not sufficient. On 2026-09-09 a post did not publish
+      for thirteen hours despite setExactAndAllowWhileIdle: the app had drifted into the
+      RARE standby bucket, where Android throttles even exact alarms to roughly one a day.
+      dumpsys alarm named the policy directly — "app_standby=-2d8h44m21s".
+
+      This app is idle by design; it posts once a week without being opened, which is
+      exactly the pattern App Standby penalises. Only the exemption fixes it, and only the
+      owner can grant it — BackgroundHealth raises the prompt.
+
+      Play restricts this permission. Irrelevant here: the app is not published, the same
+      basis on which its API keys ship inside the APK.
+    -->
+    <uses-permission
+        android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        tools:ignore="BatteryLife" />
+
     <application
         android:name=".AutoInstaApp"
         android:allowBackup="true"

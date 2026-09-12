@@ -8,16 +8,28 @@
 
 ---
 
-## What's new — the queue
+## What's new — one at a time, and a reason for everything
 
 *(Keep this section until the next release replaces it. Shown once after updating.)*
 
-You no longer have to pick a date and time for every post. Set your posting days and
-times once, then just add finished pieces to the queue. They go out in the order you put
-them in, and you can drag them around whenever you like.
+After the 9 September mix-up, three things changed.
 
-If there's nothing waiting when a posting time comes round, nothing happens — that day is
-simply skipped. No error, no notification.
+**Only one post can publish at a time.** Publishing a Reel can take a minute or more, and
+during that minute the queue used to forget it was busy — which is how two posts went out
+46 seconds apart into the same slot. Now the queue holds a "someone is posting" marker
+until that post finishes.
+
+**A failure no longer runs down the list.** If a post fails because Instagram rejected
+*that file*, the next one gets the slot — that part was right and still works. But if it
+failed because of **no connection or a login problem**, the queue now stops, because the
+next post would fail for the same reason and you'd lose the lot. Either way it never tries
+more than three in one slot.
+
+**The app now keeps a diary.** Every alarm, decision and publish is written down for two
+weeks, so when something goes wrong there is a record of it rather than a guess.
+
+⚠️ **Also check the battery banner on the queue screen** — that is why 9 September happened
+at all. See the section near the end.
 
 ---
 
@@ -204,6 +216,37 @@ Open the post and change **When**.
 | **"Paused"** on every card | The queue is paused. Tap **Resume**. |
 | A card's date is further out than you expected | Something ahead of it in the queue is taking the earlier slots — or a slot is switched off. |
 | Two posts seem to want the same time | They can't. If a set-time post lands within half an hour of a slot, the queue skips that slot and uses the next one. |
+| **"Android may not wake this app"** banner | The important one — see below. |
+
+---
+
+## ⚠️ The banner that matters most — "Android may not wake this app"
+
+**Keywords:** didn't post, missed, late, battery, sleep, only posts when I open the app,
+nothing happened overnight
+
+**This already happened once**, on Wednesday 9 September. A post was due at 19:00 and
+nothing occurred. It went out at 07:58 the next morning — the instant the app was opened.
+
+Nothing was broken. **Android was holding the alarm back.** Because this app sits idle
+between posts, Android files it as "rarely used" and starts delaying its alarms by hours,
+even the exact ones. That is the behaviour the app is *designed* around — it should post
+without you opening it — so it has to be switched off.
+
+**If you see that banner, tap "Allow it to run in the background" and accept.** It costs
+essentially no battery: the app wakes for a minute or two a week.
+
+### Samsung has a second list, and the app cannot reach it
+
+Samsung adds its own sleeping-apps list on top of Android's. No app can change it, so this
+one is by hand:
+
+1. **Settings → Battery → Background usage limits**
+2. Check **Deep sleeping apps** and **Sleeping apps** — if *autoinsta* is in either,
+   remove it.
+3. Then **Settings → Apps → autoinsta → Battery → Unrestricted**.
+
+Worth doing once. If a post is ever late again, this is the first place to look.
 
 ---
 

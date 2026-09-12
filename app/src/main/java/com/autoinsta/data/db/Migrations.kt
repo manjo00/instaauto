@@ -100,5 +100,42 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+/**
+ * v4 → v5: one publish at a time, and an app that can account for itself.
+ *
+ * Three changes, all from the 2026-09-09 incident (see
+ * `docs/specs/2026-09-12-publish-serialisation-and-diagnostics-design.md`):
+ *
+ * 1. `queue_settings` gains the **publish lease** — who is publishing and since when.
+ *    Both null, so an upgraded database starts with the lease free, which is correct:
+ *    nothing can be mid-publish at the moment the app is being upgraded.
+ * 2. `post_history` gains `failureKind`. Existing rows get null, meaning "we never
+ *    recorded this" — [com.autoinsta.domain.SlotLedger] treats an unknown kind as
+ *    non-blocking, so old history cannot retroactively freeze a slot.
+ * 3. `app_events`, the diagnostic log, created empty.
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE queue_settings ADD COLUMN publishingPostId INTEGER")
+        db.execSQL("ALTER TABLE queue_settings ADD COLUMN publishingSinceMillis INTEGER")
+
+        db.execSQL("ALTER TABLE post_history ADD COLUMN failureKind TEXT")
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `app_events` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `atMillis` INTEGER NOT NULL,
+                `category` TEXT NOT NULL,
+                `event` TEXT NOT NULL,
+                `postId` INTEGER,
+                `detail` TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_app_events_atMillis` ON `app_events` (`atMillis`)")
+    }
+}
+
 /** Every migration, in order. Passed to the Room builder. */
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)

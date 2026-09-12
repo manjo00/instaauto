@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.autoinsta.data.db.dao.AccountDao
+import com.autoinsta.data.db.dao.AppEventDao
 import com.autoinsta.data.db.dao.HashtagPresetDao
 import com.autoinsta.data.db.dao.MediaItemDao
 import com.autoinsta.data.db.dao.PostHistoryDao
@@ -13,6 +14,7 @@ import com.autoinsta.data.db.dao.PostingSlotDao
 import com.autoinsta.data.db.dao.QueueSettingsDao
 import com.autoinsta.data.db.dao.ScheduledPostDao
 import com.autoinsta.data.db.entities.AccountEntity
+import com.autoinsta.data.db.entities.AppEventEntity
 import com.autoinsta.data.db.entities.HashtagPresetEntity
 import com.autoinsta.data.db.entities.MediaItemEntity
 import com.autoinsta.data.db.entities.PostHistoryEntity
@@ -29,8 +31,9 @@ import com.autoinsta.data.db.entities.ScheduledPostEntity
         AccountEntity::class,
         PostingSlotEntity::class,
         QueueSettingsEntity::class,
+        AppEventEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -43,6 +46,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
     abstract fun postingSlotDao(): PostingSlotDao
     abstract fun queueSettingsDao(): QueueSettingsDao
+    abstract fun appEventDao(): AppEventDao
 
     companion object {
         private const val DB_NAME = "autoinsta.db"

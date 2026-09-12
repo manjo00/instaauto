@@ -213,6 +213,22 @@ constrained at all. The coach's schema was written the obvious way and would hav
 HTTP 400 on every call. Verify a wire format against the live API, and keep going after the
 first error: validation reports one problem at a time. See `docs/STATUS.md`.
 
+⚠️ **Piercing Doze is not enough — App Standby throttles exact alarms too.** On 2026-09-09
+a post sat unfired for 13 hours despite `setExactAndAllowWhileIdle`, because the app was in
+the **RARE** bucket where exact alarms are capped at roughly one a day. An app that must act
+on time while never being opened needs the battery-optimisation exemption. Every launch now
+records the bucket into `app_events`. See `docs/STATUS.md`.
+
+⚠️ **Only one post may publish at a time**, enforced by the lease in `queue_settings` and
+claimed with a single conditional `UPDATE`. Whether a slot may be reused is
+`domain/SlotLedger`'s decision, not a SQL `WHERE` — a **POSTING** post holds its slot, and a
+*transient* failure closes it while a *permanent* one passes it on. Answering it with one
+status is what let two posts publish into one slot 46 seconds apart.
+
+⚠️ **Anything worth asking "why did it do that?" about must write to `app_events`.**
+Logcat is a ring buffer; everything interesting here happens while nobody is watching. Read
+it back with `tools\diagnostics.ps1`.
+
 ⚠️ **A queued post's `scheduledAt` is derived, not chosen.** `queuePosition` is the truth;
 `QueuePlanner` computes the time and only `QueueRepository` may write it. Anything else
 that sets a queued post's time puts the two into disagreement, and the symptom is a post
@@ -232,6 +248,7 @@ an https bounce page (`docs/oauth/index.html`, served by GitHub Pages) that forw
 | 2 | `scheduled_posts.missedPolicy` added (per-post rule for a post whose time passed while the device was off). Real `Migration(1,2)`; **`fallbackToDestructiveMigration()` removed**. |
 | 3 | `media_items` gained `widthPx`, `heightPx`, `fitMode`, `cropOffset` — per-image fitting. `Migration(2,3)` defaults to PAD at centre, matching previous behaviour. |
 | 4 | The posting queue: new `posting_slots` and `queue_settings` tables; `scheduled_posts` gained `timingMode`, `queuePosition`, `notBeforeMillis`. `Migration(3,4)` defaults every existing post to `FIXED` — exactly how it already behaved — and seeds the settings row. |
+| 5 | One publish at a time, and a diagnosable app. `queue_settings` gained the publish lease (`publishingPostId`, `publishingSinceMillis`); `post_history` gained `failureKind`; new `app_events` table. `Migration(4,5)` leaves the lease free and old history's `failureKind` null, which `SlotLedger` treats as non-blocking so nothing retroactively freezes a slot. |
 
 ✅ Real migrations are in place (`data/db/Migrations.kt`). **Every schema change now needs
 a migration there plus a case in `MigrationTest`** — schemas are exported to `app/schemas/`

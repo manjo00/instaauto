@@ -2,6 +2,7 @@ package com.autoinsta.data.db
 
 import androidx.room.TypeConverter
 import com.autoinsta.domain.MediaFit
+import com.autoinsta.domain.model.FailureKind
 import com.autoinsta.domain.model.MediaType
 import com.autoinsta.domain.model.MissedPostPolicy
 import com.autoinsta.domain.model.PostStatus
@@ -31,4 +32,9 @@ class Converters {
 
     @TypeConverter fun fitModeToString(v: MediaFit.Mode): String = v.name
     @TypeConverter fun stringToFitMode(v: String): MediaFit.Mode = MediaFit.Mode.valueOf(v)
+
+    // Nullable both ways: a successful publish has no failure kind, and every history row
+    // written before v5 has none either.
+    @TypeConverter fun failureKindToString(v: FailureKind?): String? = v?.name
+    @TypeConverter fun stringToFailureKind(v: String?): FailureKind? = v?.let(FailureKind::valueOf)
 }

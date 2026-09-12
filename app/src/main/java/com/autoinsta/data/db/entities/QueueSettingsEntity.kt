@@ -32,6 +32,26 @@ data class QueueSettingsEntity(
      * toggle at the worst possible moment.
      */
     val resumedAtMillis: Long = 0L,
+
+    /**
+     * Who is publishing right now, if anyone — the publish lease.
+     *
+     * Exactly one post may publish at a time. On 2026-09-09 two went out 46 seconds apart
+     * because nothing enforced that, and a post that is mid-publish is invisible to both
+     * queue queries while it runs.
+     *
+     * It lives in the database rather than memory because the publisher is a
+     * `CoroutineWorker` the system can kill mid-flight; an in-process lock would simply
+     * vanish with it.
+     */
+    val publishingPostId: Long? = null,
+
+    /**
+     * When the lease was taken. A plain flag would deadlock the queue forever if the
+     * publisher died before releasing it — the timestamp is what lets a stale lease be
+     * taken over. See `PublishPolicy.PUBLISH_LEASE_MILLIS`.
+     */
+    val publishingSinceMillis: Long? = null,
 ) {
     companion object {
         const val SINGLETON_ID = 1

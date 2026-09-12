@@ -10,9 +10,11 @@ import androidx.work.workDataOf
 import com.autoinsta.AutoInstaApp
 import com.autoinsta.data.db.entities.PostHistoryEntity
 import com.autoinsta.data.db.relations.ScheduledPostWithMedia
+import com.autoinsta.data.repository.EventLog
 import com.autoinsta.data.repository.PublishResult
 import com.autoinsta.domain.QueuePlanner
 import com.autoinsta.domain.ScheduleCalculator
+import com.autoinsta.domain.model.FailureKind
 import com.autoinsta.domain.model.MissedPostPolicy
 import com.autoinsta.domain.model.PostStatus
 import com.autoinsta.domain.model.TimingMode
@@ -61,7 +63,45 @@ class PostWorker(
         }
         if (!proceed) return Result.success()
 
+        // ── One publish at a time ───────────────────────────────────────────
+        // Taken BEFORE the status moves to POSTING, so a post that cannot publish is left
+        // exactly as it was — still SCHEDULED, still in the pool, still in order.
+        //
+        // A blocked post is not a failed post. It simply waits: the holder's completion
+        // replans the queue, and by then the holder's slot is correctly marked spent, so
+        // this post is offered the next one instead of racing for the same one.
+        if (!app.queueRepository.tryAcquirePublishLease(postId)) {
+            app.eventLog.log(
+                EventLog.Category.WORKER,
+                "SKIPPED_ANOTHER_PUBLISH_IN_FLIGHT",
+                postId,
+            )
+            return Result.success()
+        }
+
+        return try {
+            publishHoldingLease(postId, post)
+        } finally {
+            app.queueRepository.releasePublishLease(postId)
+        }
+    }
+
+    /** The publish itself. The caller owns the lease and releases it. */
+    private suspend fun publishHoldingLease(
+        postId: Long,
+        post: ScheduledPostWithMedia,
+    ): Result {
+        val app = applicationContext as AutoInstaApp
+        val repository = app.postRepository
+        val notifier = app.notifier
+
         repository.updateStatus(postId, PostStatus.POSTING)
+        app.eventLog.log(
+            EventLog.Category.PUBLISH,
+            "STARTED",
+            postId,
+            "slot=${post.post.scheduledAt} type=${post.post.postType}",
+        )
 
         // Publishing is the one moment a valid token actually matters, and this worker
         // may be the only thing that runs for weeks. Cheap, and a no-op unless due.
@@ -72,7 +112,8 @@ class PostWorker(
         val missing = post.mediaItems.filterNot { File(it.localUri).canRead() }
         if (missing.isNotEmpty()) {
             val reason = "${missing.size} media file(s) are missing from storage."
-            fail(postId, post.post.caption, reason)
+            // Our own files, so this will not fix itself — and the slot should pass on.
+            fail(postId, post.post.caption, reason, FailureKind.PERMANENT)
             notifier.notifyFailed(postId, post.post.caption, reason)
             leaveQueueIfQueued(post)
             return Result.success()
@@ -94,6 +135,9 @@ class PostWorker(
                         errorMessage = null,
                     )
                 )
+                app.eventLog.log(
+                    EventLog.Category.PUBLISH, "POSTED", postId, "mediaId=${result.mediaId}",
+                )
                 notifier.notifyPosted(postId, post.post.caption, post.mediaItems.size)
                 leaveQueueIfQueued(post)
                 Result.success()
@@ -104,18 +148,29 @@ class PostWorker(
                 // retry is not blocked by the "already handled" guard at the top.
                 repository.updateStatus(postId, PostStatus.SCHEDULED)
                 if (runAttemptCount >= MAX_RETRIES) {
-                    fail(postId, post.post.caption, result.reason)
+                    // Recorded as TRANSIENT so the slot is NOT handed to the next post:
+                    // whatever beat this one — no network, a dead token — would beat the
+                    // next one too, and marching on would fail the whole queue.
+                    fail(postId, post.post.caption, result.reason, FailureKind.TRANSIENT)
                     notifier.notifyFailed(postId, post.post.caption, result.reason)
                     leaveQueueIfQueued(post)
                     Result.failure()
                 } else {
+                    app.eventLog.log(
+                        EventLog.Category.PUBLISH,
+                        "TRANSIENT_RETRY",
+                        postId,
+                        "attempt ${runAttemptCount + 1}/$MAX_RETRIES: ${result.reason}",
+                    )
                     // WorkManager backs off exponentially between attempts.
                     Result.retry()
                 }
             }
 
             is PublishResult.PermanentFailure -> {
-                fail(postId, post.post.caption, result.reason)
+                // This media, not the connection. The next post in the pool may have the
+                // slot — which is exactly what happened on 2026-09-09, correctly.
+                fail(postId, post.post.caption, result.reason, FailureKind.PERMANENT)
                 notifier.notifyFailed(postId, post.post.caption, result.reason)
                 leaveQueueIfQueued(post)
                 Result.failure()
@@ -139,7 +194,14 @@ class PostWorker(
             is ScheduleCalculator.Action.WaitUntil -> false // too early; the alarm stands
             ScheduleCalculator.Action.AskUser -> false      // the queue shows it; the owner decides
             ScheduleCalculator.Action.MarkMissed -> {
-                fail(postId, post.post.caption, "Missed its time by more than the grace period.")
+                // Not a publish failure at all — the moment passed. TRANSIENT so it never
+                // hands a slot on; a fixed post has no slot to hand on in the first place.
+                fail(
+                    postId,
+                    post.post.caption,
+                    "Missed its time by more than the grace period.",
+                    FailureKind.TRANSIENT,
+                )
                 app.notifier.notifyFailed(postId, post.post.caption, "Too late to post automatically")
                 false
             }
@@ -188,7 +250,17 @@ class PostWorker(
         (applicationContext as AutoInstaApp).queueRepository.removeFromQueue(post.post.id)
     }
 
-    private suspend fun fail(postId: Long, caption: String, reason: String) {
+    /**
+     * @param kind whose fault it was. Read back by [com.autoinsta.domain.SlotLedger] to
+     *   decide whether the next post may take this slot, so it must be recorded rather
+     *   than re-derived from [reason] later.
+     */
+    private suspend fun fail(
+        postId: Long,
+        caption: String,
+        reason: String,
+        kind: FailureKind,
+    ) {
         val app = applicationContext as AutoInstaApp
         app.postRepository.updateStatus(postId, PostStatus.FAILED)
         val post = app.postRepository.getById(postId) ?: return
@@ -203,8 +275,10 @@ class PostWorker(
                 status = PostStatus.FAILED,
                 instagramMediaId = null,
                 errorMessage = reason,
+                failureKind = kind,
             )
         )
+        app.eventLog.log(EventLog.Category.PUBLISH, "FAILED_$kind", postId, reason)
     }
 
     companion object {

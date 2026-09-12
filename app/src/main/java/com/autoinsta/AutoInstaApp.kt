@@ -13,6 +13,8 @@ import com.autoinsta.data.repository.HistoryRepository
 import com.autoinsta.data.repository.PostRepository
 import com.autoinsta.data.repository.PresetRepository
 import com.autoinsta.data.repository.CoachRepository
+import com.autoinsta.data.repository.EventLog
+import com.autoinsta.scheduler.BackgroundHealth
 import com.autoinsta.data.repository.PublishRepository
 import com.autoinsta.data.repository.QueueRepository
 import com.autoinsta.scheduler.Notifier
@@ -65,8 +67,12 @@ class AutoInstaApp : Application(), ImageLoaderFactory {
             slotDao = database.postingSlotDao(),
             settingsDao = database.queueSettingsDao(),
             postScheduler = postScheduler,
+            eventLog = eventLog,
         )
     }
+
+    /** The durable record of what the app did, for diagnosing what it did wrong. */
+    val eventLog: EventLog by lazy { EventLog(dao = database.appEventDao()) }
 
     val presetRepository: PresetRepository by lazy {
         PresetRepository(presetDao = database.hashtagPresetDao())
@@ -137,6 +143,20 @@ class AutoInstaApp : Application(), ImageLoaderFactory {
         // person who opens the app; the daily job covers the one who does not.
         applicationScope.launch { queueRepository.replan() }
         QueueMaintenanceWorker.schedule(this)
+
+        applicationScope.launch {
+            // The standby bucket is why the 2026-09-09 slot never fired: in RARE, Android
+            // throttles even setExactAndAllowWhileIdle to roughly once a day. Recording it
+            // at every launch turns "the alarm didn't go off" from a guess into a reading.
+            eventLog.log(
+                EventLog.Category.APP,
+                "LAUNCHED",
+                detail = "standbyBucket=${BackgroundHealth.standbyBucket(this@AutoInstaApp)} " +
+                    "batteryExempt=${BackgroundHealth.isIgnoringBatteryOptimisations(this@AutoInstaApp)} " +
+                    "exactAlarms=${postScheduler.canScheduleExact()}",
+            )
+            eventLog.prune()
+        }
     }
 
     /**

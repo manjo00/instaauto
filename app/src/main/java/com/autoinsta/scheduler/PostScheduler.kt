@@ -55,7 +55,7 @@ open class PostScheduler(
     open fun schedule(postId: Long, scheduledAtMillis: Long, nowMillis: Long = System.currentTimeMillis()) {
         val manager = alarmManager ?: return
         val triggerAt = ScheduleCalculator.alarmTimeFor(scheduledAtMillis, nowMillis)
-        val pendingIntent = pendingIntentFor(postId, mutable = false)
+        val pendingIntent = pendingIntentFor(postId, mutable = false, scheduledAtMillis = scheduledAtMillis)
 
         if (canScheduleExact()) {
             // setExactAndAllowWhileIdle is the only variant that pierces Doze. Measured
@@ -73,10 +73,17 @@ open class PostScheduler(
         manager.cancel(pendingIntentFor(postId, mutable = false))
     }
 
-    private fun pendingIntentFor(postId: Long, mutable: Boolean): PendingIntent {
+    private fun pendingIntentFor(
+        postId: Long,
+        mutable: Boolean,
+        scheduledAtMillis: Long = 0L,
+    ): PendingIntent {
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             action = AlarmReceiver.ACTION_POST_DUE
             putExtra(AlarmReceiver.EXTRA_POST_ID, postId)
+            // Lets the receiver record how late the alarm arrived — the number that makes
+            // App Standby throttling visible instead of inferred.
+            putExtra(AlarmReceiver.EXTRA_SCHEDULED_AT, scheduledAtMillis)
             // The extras are not part of PendingIntent equality, so without a distinct
             // data URI every post would share one PendingIntent and overwrite the others.
             data = android.net.Uri.parse("autoinsta://post/$postId")
