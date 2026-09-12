@@ -51,6 +51,15 @@ open class PublishRepository(
     private val uploader: CloudinaryUploader,
     private val api: InstagramApi,
     private val accountRepository: AccountRepository,
+    /**
+     * Null in tests.
+     *
+     * Post 5 failed on 2026-09-09 with *"Only photo or video can be accepted as media"* and
+     * the cause is now unrecoverable: the file turned out to be fine and the delivery URL
+     * returns a valid 121 KB JPEG, so whatever Instagram actually objected to was in the
+     * exchange itself — and nothing recorded the exchange. That is what these events fix.
+     */
+    private val eventLog: EventLog? = null,
 ) {
 
     open suspend fun publish(post: ScheduledPostWithMedia): PublishResult = withContext(Dispatchers.IO) {
@@ -99,7 +108,22 @@ open class PublishRepository(
                 PostType.CAROUSEL -> publishCarousel(account.igUserId, token, media.map { it.toFileRef() }, caption)
             }
         } catch (e: Exception) {
-            classify(e)
+            // Read once, used twice: for the record, and for the retry decision.
+            val body = (e as? retrofit2.HttpException)
+                ?.let { runCatching { it.response()?.errorBody()?.string() }.getOrNull() }
+
+            eventLog?.log(
+                EventLog.Category.PUBLISH,
+                "REJECTED",
+                postId = post.post.id,
+                detail = buildString {
+                    append(e::class.simpleName)
+                    (e as? retrofit2.HttpException)?.let { append(" HTTP ${it.code()}") }
+                    body?.let { append(' ').append(it.take(MAX_LOGGED_ERROR_CHARS)) }
+                        ?: e.message?.let { append(' ').append(it) }
+                },
+            )
+            classify(e, body)
         }
     }
 
@@ -247,11 +271,15 @@ open class PublishRepository(
     /** Upload, then build the address with the owner's fitting applied. */
     private suspend fun uploadAndBuildUrl(item: FileRef): String {
         val uploaded = uploader.upload(File(item.path), item.mediaType)
-        return uploader.deliveryUrl(
+        val url = uploader.deliveryUrl(
             uploaded = uploaded,
             mode = item.fitMode,
             cropOffset = item.cropOffset,
         )
+        // The exact address handed to Instagram. When it says a URL is "not a photo or
+        // video", this is the only thing that can settle whether it was right.
+        eventLog?.log(EventLog.Category.PUBLISH, "MEDIA_URL", detail = url)
+        return url
     }
 
     /**
@@ -261,9 +289,13 @@ open class PublishRepository(
      * burns quota forever, while giving up on a dropped connection loses a post that
      * would have worked.
      */
-    private fun classify(e: Exception): PublishResult = when (e) {
+    /**
+     * @param body Meta's error payload, read **once** by the caller. `errorBody()` is a
+     *   one-shot stream: reading it here as well would hand whoever read second an empty
+     *   string, and the diagnostic that mattered would be the one that lost the race.
+     */
+    private fun classify(e: Exception, body: String?): PublishResult = when (e) {
         is retrofit2.HttpException -> {
-            val body = runCatching { e.response()?.errorBody()?.string() }.getOrNull()
             val message = body?.let { metaMessage(it) }
             when {
                 // Checked before the 4xx rule: Meta reports "the container isn't ready
@@ -312,4 +344,9 @@ open class PublishRepository(
         widthPx = widthPx,
         heightPx = heightPx,
     )
+
+    private companion object {
+        /** Enough of Meta's payload to identify the complaint, not enough to bloat the log. */
+        const val MAX_LOGGED_ERROR_CHARS = 600
+    }
 }

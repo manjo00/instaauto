@@ -94,6 +94,7 @@ class AutoInstaApp : Application(), ImageLoaderFactory {
             uploader = NetworkModule.cloudinaryUploader,
             api = NetworkModule.instagramApi,
             accountRepository = accountRepository,
+            eventLog = eventLog,
         )
     }
 
