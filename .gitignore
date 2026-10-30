@@ -27,3 +27,5 @@ Thumbs.db
 
 # --- Tooling/runtime state (not project source) ---
 .claude/
+graphify-out/*
+!graphify-out/GRAPH_REPORT.md
